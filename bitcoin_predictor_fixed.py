@@ -119,13 +119,16 @@ from sklearn.ensemble import (
     RandomForestRegressor,
     GradientBoostingRegressor,
     ExtraTreesRegressor,
-    StackingRegressor,
 )
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
-from statsmodels.stats.outliers_influence import variance_inflation_factor
+from sklearn.base import clone
+try:
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+except Exception:  # pragma: no cover
+    variance_inflation_factor = None
 
 # -------------------------- Helper functions --------------------------
 
@@ -680,11 +683,17 @@ class FixedBitcoinPredictor:
                 print(f"⚠️ Only {len(low_vif_features)} features after VIF filter, taking top 20 by importance")
                 low_vif_features = [feat for feat, _ in feature_importance[:20]]
 
+            # Ensure 'Close' is part of the model features for next-day price prediction
+            if "Close" not in low_vif_features and "Close" in df.columns:
+                low_vif_features = ["Close"] + low_vif_features
+            # De-duplicate while preserving order
+            seen = set()
+            low_vif_features = [f for f in low_vif_features if not (f in seen or seen.add(f))]
             print(f"✅ Selected {len(low_vif_features)} features after VIF filter (<20)")
             self.selected_features = low_vif_features
 
             # Restrict df to selected features plus OHLCV if present
-            keep_cols = [c for c in low_vif_features] + [c for c in ["Close", "Open", "High", "Low", "Volume"] if c in df.columns]
+            keep_cols = [c for c in low_vif_features] + [c for c in ["Open", "High", "Low", "Volume"] if c in df.columns]
             df = df[keep_cols]
 
         feature_count = len([c for c in df.columns if c not in ["Open", "High", "Low", "Close", "Volume", "M2SL"]])
@@ -933,7 +942,7 @@ class FixedBitcoinPredictor:
             return preds
 
     def calculate_adaptive_ensemble_weights(self, validation_results):
-        print("🔧 Calculating adaptive ensemble weights (FIXED - stricter)...")
+        print("🔧 Calculating adaptive ensemble weights (strict anti-overfitting)...")
         weights = {}
         for name, results in validation_results.items():
             r2m = results.get("r2_mean", float("nan"))
@@ -941,30 +950,33 @@ class FixedBitcoinPredictor:
             if np.isnan(r2m) or r2m < 0:
                 print(f"❌ Excluded {name}: R² = {r2m:.4f} < 0")
                 continue
-            if overfit > 2.0:
+            if not np.isnan(overfit) and overfit > 2.0:
                 print(f"❌ Excluded {name}: Overfitting = {overfit:.2f}x > 2.0")
                 continue
-            performance = (1.0 / (results.get("val_mae", 1e6) + 1e-6)) * (1 + max(r2m, 0))
-            overfit_penalty = 1.0 / ((overfit ** 1.5) if np.isfinite(overfit) else 10.0)
-            stability = results.get("stability", 1.0)
-            stability_score = 1.0 / (stability + 0.01) if np.isfinite(stability) else 1.0
-            r2_bonus = 2.0 if r2m > 0.2 else 1.5 if r2m > 0 else 0.8
-            weights[name] = performance * overfit_penalty * stability_score * r2_bonus
+            val_mae = results.get("val_mae", 1e6)
+            stability = results.get("stability", 0.2)
+            perf = (1.0 / (val_mae + 1e-6)) * (1.0 + max(0.0, r2m))
+            stab = 1.0 / (1.0 + max(0.0, stability - 0.2))
+            weights[name] = perf * stab
 
         if not weights:
-            # fallback to best r2 model
-            best_name = max(validation_results, key=lambda k: (validation_results[k].get("r2_mean") or -np.inf))
-            weights[best_name] = 1.0
-            print(f"⚠️ No models passed filters, using best: {best_name}")
+            # Prefer stable classical models if available
+            for fallback in ["sarimax", "lppl", "lasso"]:
+                if fallback in validation_results:
+                    weights[fallback] = 1.0
+            # As a last resort, pick best R2
+            if not weights:
+                best_name = max(validation_results, key=lambda k: (validation_results[k].get("r2_mean") or -np.inf))
+                weights[best_name] = 1.0
+            print("⚠️ No models passed filters, using fallback set")
 
-        total_weight = sum(weights.values())
-        normalized = {k: v / total_weight for k, v in weights.items()} if total_weight > 0 else {k: 1.0 / len(weights) for k in weights}
-        # prune tiny weights
+        total = sum(weights.values())
+        normalized = {k: v / total for k, v in weights.items()} if total > 0 else {k: 1.0 / len(weights) for k in weights}
         filtered = {k: w for k, w in normalized.items() if w >= 0.05} or normalized
         total_f = sum(filtered.values())
         filtered = {k: w / total_f for k, w in filtered.items()}
 
-        print("✅ FIXED ensemble weights (stricter criteria):")
+        print("✅ Ensemble weights:")
         for name, weight in sorted(filtered.items(), key=lambda x: x[1], reverse=True):
             r2m = validation_results[name].get("r2_mean")
             overfit = validation_results[name].get("overfitting_ratio")
@@ -972,24 +984,65 @@ class FixedBitcoinPredictor:
         return filtered
 
     def build_stacking(self, X_train_scaled, y_train_scaled):
+        """Custom time-series stacking to avoid cross_val_predict partition error."""
         base_models = [
             (name, model)
             for name, model in self.models.items()
             if name in self.ensemble_weights and name not in ["lppl", "lstm", "sarimax"]
         ]
         if not base_models:
-            print("⚠️ No base models for stacking, using fallback Lasso")
-            base_models = [("fallback_lasso", Lasso(alpha=20.0, max_iter=10000))]
-        meta_model = Lasso(alpha=20.0, max_iter=10000)
-        self.stacking = StackingRegressor(
-            estimators=base_models,
-            final_estimator=meta_model,
-            cv=TimeSeriesSplit(n_splits=3),
-            n_jobs=-1,
-        )
-        X_train_scaled = np.nan_to_num(X_train_scaled)
-        y_train_scaled = np.nan_to_num(y_train_scaled)
-        self.stacking.fit(X_train_scaled, y_train_scaled)
+            # Fall back to direct model (no stacking)
+            print("⚠️ No base models for stacking, falling back to direct Lasso on features")
+            self.direct_model = Lasso(alpha=20.0, max_iter=10000)
+            self.direct_model.fit(np.nan_to_num(X_train_scaled), np.nan_to_num(y_train_scaled))
+            self.fitted_base_models = None
+            self.meta_model = None
+            return
+
+        tss = TimeSeriesSplit(n_splits=3)
+        n_samples = X_train_scaled.shape[0]
+        oof_preds = np.full((n_samples, len(base_models)), np.nan, dtype=float)
+
+        # Generate OOF predictions using expanding time-series folds
+        for fold_idx, (tr_idx, va_idx) in enumerate(tss.split(X_train_scaled)):
+            X_tr, X_va = X_train_scaled[tr_idx], X_train_scaled[va_idx]
+            y_tr = y_train_scaled[tr_idx]
+            for m_idx, (name, model) in enumerate(base_models):
+                est = clone(model)
+                est.fit(np.nan_to_num(X_tr), np.nan_to_num(y_tr))
+                oof = est.predict(np.nan_to_num(X_va))
+                oof_preds[va_idx, m_idx] = oof
+
+        # Train meta-model on rows where all OOF preds are present
+        valid_mask = np.all(np.isfinite(oof_preds), axis=1)
+        if not np.any(valid_mask):
+            # As a last resort, fit on last fold predictions only
+            valid_mask = np.isfinite(oof_preds).any(axis=1)
+        meta_X = oof_preds[valid_mask]
+        meta_y = y_train_scaled[valid_mask]
+
+        self.direct_model = None
+        self.meta_model = Lasso(alpha=20.0, max_iter=10000)
+        self.meta_model.fit(np.nan_to_num(meta_X), np.nan_to_num(meta_y))
+
+        # Fit final base models on full training data for inference
+        self.fitted_base_models = []
+        for name, model in base_models:
+            est = clone(model)
+            est.fit(np.nan_to_num(X_train_scaled), np.nan_to_num(y_train_scaled))
+            self.fitted_base_models.append((name, est))
+
+    def predict_stacking(self, X_scaled):
+        if hasattr(self, "direct_model") and self.direct_model is not None:
+            return self.direct_model.predict(np.nan_to_num(X_scaled))
+        if not hasattr(self, "fitted_base_models") or self.fitted_base_models is None:
+            raise RuntimeError("Stacking models not built")
+        base_preds = []
+        for _, est in self.fitted_base_models:
+            base_preds.append(est.predict(np.nan_to_num(X_scaled)))
+        base_preds = np.vstack(base_preds).T  # shape (n_samples, n_base)
+        pred_scaled = self.meta_model.predict(np.nan_to_num(base_preds))
+        return pred_scaled
 
     def fit_fixed_ensemble(self, X_train, y_train, X_val, y_val):
         print("🚀 Training FIXED ensemble (no augmentation)...")
@@ -1230,7 +1283,7 @@ class FixedBitcoinPredictor:
         X_scaled = self.scaler.transform(X_selected)
         X_scaled = np.nan_to_num(X_scaled)
 
-        ensemble_pred_scaled = self.stacking.predict(X_scaled)
+        ensemble_pred_scaled = self.predict_stacking(X_scaled)
 
         if TORCH_AVAILABLE and self.models.get("lstm") is not None and self.use_lstm:
             lstm_pred_scaled = self.predict_lstm(X_scaled)
