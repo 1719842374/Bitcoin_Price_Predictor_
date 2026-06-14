@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>₿ Bitcoin Analyse — v4</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.29.1.min.js" charset="utf-8"></script>
+<style>
+:root {
+  --bg:#0a0e1a; --bg-card:#111827; --bg-card2:#1a2235;
+  --border:#2d3a50; --text:#e2e8f0; --muted:#94a3b8;
+  --orange:#f7931a; --green:#22c55e; --red:#ef4444;
+  --blue:#3b82f6; --yellow:#eab308; --purple:#a855f7;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;margin:0;}
+.hdr{background:linear-gradient(135deg,#0f1823 0%,#1a0a2e 100%);border-bottom:1px solid var(--border);padding:18px 0;}
+.hdr h1{color:var(--orange);font-size:1.9rem;font-weight:800;margin:0;letter-spacing:-0.5px;}
+.hdr .sub{color:var(--muted);font-size:.8rem;margin-top:4px;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px;}
+.stitle{font-size:1rem;font-weight:700;color:var(--orange);border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.snum{background:var(--orange);color:#000;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;flex-shrink:0;}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+.price-big{font-size:2.4rem;font-weight:800;}
+.chg{font-size:.95rem;font-weight:600;}
+.pos{color:var(--green);} .neg{color:var(--red);}
+.metric{text-align:center;}
+.mlabel{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.mval{font-size:1.2rem;font-weight:700;margin-top:3px;}
+.mcard{background:var(--bg-card2);border-radius:8px;padding:10px 6px;}
+.cbar{height:10px;border-radius:5px;background:var(--border);overflow:hidden;margin:6px 0;}
+.cbar-fill{height:100%;border-radius:5px;transition:width 1s;}
+.srow{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.slabel{width:175px;font-size:.78rem;color:var(--muted);flex-shrink:0;}
+.sbar-w{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;}
+.sbar-f{height:100%;border-radius:4px;}
+.sval{width:36px;text-align:right;font-size:.78rem;font-weight:700;}
+.swt{width:32px;text-align:right;font-size:.72rem;color:var(--muted);}
+.gws-num{font-size:3.8rem;font-weight:900;line-height:1;}
+.spin{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.ld{color:var(--muted);text-align:center;padding:32px;}
+.cat-g{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.cat-c{text-align:center;padding:10px 4px;border-radius:8px;border:1px solid var(--border);}
+.cat-p{font-size:1.3rem;font-weight:800;}
+.cat-n{font-size:.68rem;color:var(--muted);margin-top:3px;line-height:1.2;}
+.verdict{display:inline-block;padding:5px 14px;border-radius:20px;font-weight:700;font-size:.85rem;}
+.vbull{background:rgba(34,197,94,.15);color:var(--green);border:1px solid var(--green);}
+.vbear{background:rgba(239,68,68,.15);color:var(--red);border:1px solid var(--red);}
+.vneut{background:rgba(234,179,8,.15);color:var(--yellow);border:1px solid var(--yellow);}
+.tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+.tbl th{color:var(--muted);font-weight:600;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;}
+.tbl td{padding:6px 10px;border-bottom:1px solid rgba(45,58,80,.4);}
+.badge2{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;}
+::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+@media(max-width:768px){.cat-g{grid-template-columns:repeat(3,1fr);}.price-big{font-size:1.7rem;}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h1>₿ Bitcoin Analyse</h1>
+        <div class="sub"><span class="dot"></span>Vollständig clientseitig · Kein Backend · Live Daten &nbsp;|&nbsp; <span id="upd">Lade...</span></div>
+      </div>
+      <div class="text-end d-none d-md-block">
+        <div style="color:var(--muted);font-size:.72rem;">v4 · 12 Sektionen</div>
+        <div style="color:var(--orange);font-size:.95rem;font-weight:700;" id="hdr-price">–</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container py-3">
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="stitle"><span class="snum">1</span>Analysezeitpunkt &amp; Status</div>
+      <div id="s1"><div class="ld"><div class="spin"></div>Lade Live-Daten...</div></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="stitle"><span class="snum">2</span>Halving-Zyklus</div>
+      <div id="s2"><div class="ld"><div class="spin"></div>Berechne...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="stitle"><span class="snum">3</span>Indikatoren-Scoring (7 Gewichtete Signale)</div>
+      <div id="s3"><div class="ld"><div class="spin"></div>Lade Indikatoren...</div></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="stitle"><span class="snum">4</span>Power-Law Bewertung</div>
+      <div id="s4"><div class="ld"><div class="spin"></div>Berechne Power-Law...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="stitle"><span class="snum">5</span>GWS — Gesamtwert-Signal</div>
+      <div id="s5"><div class="ld"><div class="spin"></div>Berechne GWS...</div></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="stitle"><span class="snum">7</span>Kategorien A–E</div>
+      <div id="s7"><div class="ld"><div class="spin"></div>Berechne...</div></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="stitle"><span class="snum">8</span>Zyklus-Einschätzung</div>
+      <div id="s8"><div class="ld"><div class="spin"></div>Berechne...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="stitle"><span class="snum">6</span>Monte Carlo Simulation (10.000 Pfade · GBM mit Drift-Decay)</div>
+  <div id="s6"><div class="ld"><div class="spin"></div>Starte Simulation...</div></div>
+</div>
+
+<div class="card">
+  <div class="stitle"><span class="snum">9</span>Finale Preis-Schätzung (3M + 6M)</div>
+  <div id="s9"><div class="ld"><div class="spin"></div>Warte auf Monte Carlo...</div></div>
+</div>
+
+<div class="card">
+  <div class="stitle"><span class="snum">10</span>Technische Analyse — Professioneller Chart</div>
+  <div class="d-flex flex-wrap gap-3 mb-3 align-items-center">
+    <div>
+      <label style="font-size:.75rem;color:var(--muted);" class="me-1">Zeitraum:</label>
+      <select id="cr" class="form-select form-select-sm d-inline-block" style="width:auto;background:var(--bg-card2);color:var(--text);border-color:var(--border);">
+        <option value="90">3 Monate</option>
+        <option value="180">6 Monate</option>
+        <option value="365" selected>1 Jahr</option>
+        <option value="730">2 Jahre</option>
+        <option value="1095">3 Jahre</option>
+      </select>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="o2yma" checked><label class="form-check-label" style="font-size:.75rem;">2Y MA</label></div>
+      <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="opi" checked><label class="form-check-label" style="font-size:.75rem;">Pi Cycle</label></div>
+      <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="o200w"><label class="form-check-label" style="font-size:.75rem;">200W MA</label></div>
+      <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="ogr"><label class="form-check-label" style="font-size:.75rem;">Golden Ratio</label></div>
+    </div>
+  </div>
+  <div id="s10"><div class="ld"><div class="spin"></div>Lade Chart-Daten...</div></div>
+</div>
+
+<div class="row">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="stitle"><span class="snum">11</span>Fear &amp; Greed Index</div>
+      <div id="s11"><div class="ld"><div class="spin"></div>Lade F&amp;G Daten...</div></div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="stitle"><span class="snum">12</span>Umfassendes Gesamt-Fazit</div>
+      <div id="s12"><div class="ld"><div class="spin"></div>Erstelle Analyse...</div></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="text-center py-3" style="color:var(--muted);font-size:.72rem;border-top:1px solid var(--border);">
+  ₿ Bitcoin Analyse v4 · Alle Daten clientseitig · Kein Backend · Nur zur Information — keine Anlageberatung
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  BTC ANALYSE v4  —  Main Script
+// ═══════════════════════════════════════════════════════════
+
+const S = {
+  price:null, change24h:null, marketCap:null, vol24h:null,
+  priceHistory:null, ohlcv:null,
+  fearGreed:null, fearGreedHistory:null,
+  hashrate3m:null, eurusd:null, dxy:null, fedfunds:5.33,
+  halvings:[
+    {date:new Date('2012-11-28')},{date:new Date('2016-07-09')},
+    {date:new Date('2020-05-11')},{date:new Date('2024-04-20')},
+    {date:new Date('2028-04-18')},
+  ],
+  gis:null, powerlaw:null, cycleScore:null, gws:null,
+  mc3m:null, mc6m:null,
+};
+
+// ── Formatierung ──
+const fmtN = n => new Intl.NumberFormat('de-DE',{maximumFractionDigits:0}).format(n);
+const fmtU = n => '$'+fmtN(n);
+const fmtK = n => n>=1e12?'$'+(n/1e12).toFixed(2)+' Bio':n>=1e9?'$'+(n/1e9).toFixed(2)+' Mrd':n>=1e6?'$'+(n/1e6).toFixed(2)+' Mio':fmtU(n);
+const el = id => document.getElementById(id);
+
+function scoreColor(v){
+  if(v>=72) return '#22c55e';
+  if(v>=57) return '#84cc16';
+  if(v>=43) return '#eab308';
+  if(v>=28) return '#f97316';
+  return '#ef4444';
+}
+function scoreLabel(v){
+  if(v>=72) return {t:'Extrem Bullisch',c:'vbull'};
+  if(v>=57) return {t:'Bullisch',c:'vbull'};
+  if(v>=43) return {t:'Neutral',c:'vneut'};
+  if(v>=28) return {t:'Bärisch',c:'vbear'};
+  return {t:'Extrem Bärisch',c:'vbear'};
+}
+
+// ── API helpers ──
+async function fetchJ(url,ms=12000){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
+  try{const r=await fetch(url,{signal:c.signal});clearTimeout(t);if(!r.ok)throw r.status;return await r.json();}
+  catch(e){clearTimeout(t);throw e;}
+}
+async function fetchT(url,ms=10000){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
+  try{const r=await fetch(url,{signal:c.signal});clearTimeout(t);if(!r.ok)throw r.status;return await r.text();}
+  catch(e){clearTimeout(t);throw e;}
+}
+
+// ── DATA LOADERS ──
+async function loadCoinGecko(){
+  try{
+    const d=await fetchJ('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true');
+    S.price=d.bitcoin.usd; S.change24h=d.bitcoin.usd_24h_change;
+    S.marketCap=d.bitcoin.usd_market_cap; S.vol24h=d.bitcoin.usd_24h_vol;
+    el('hdr-price').textContent=fmtU(S.price);
+  }catch(e){console.warn('CoinGecko simple:',e);}
+}
+async function loadPriceHistory(){
+  try{
+    const d=await fetchJ('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1825&interval=daily',22000);
+    S.priceHistory=d.prices;
+  }catch(e){
+    console.warn('CoinGecko HC fail, trying blockchain.info:',e);
+    try{
+      const d2=await fetchJ('https://api.blockchain.info/charts/market-price?timespan=5years&format=json&cors=true',18000);
+      S.priceHistory=d2.values.map(v=>[v.x*1000,v.y]);
+    }catch(e2){console.warn('blockchain.info also failed:',e2);}
+  }
+}
+async function loadBinanceOHLCV(){
+  try{
+    const d=await fetchJ('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1095',22000);
+    S.ohlcv=d.map(k=>({ts:k[0],date:new Date(k[0]),o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+    if(!S.price&&S.ohlcv.length) S.price=S.ohlcv.at(-1).c;
+  }catch(e){console.warn('Binance OHLCV:',e);}
+}
+async function loadFearGreed(){
+  try{
+    const d=await fetchJ('https://api.alternative.me/fng/?limit=2000');
+    S.fearGreedHistory=d.data.map(x=>({val:+x.value,ts:+x.timestamp*1000,date:new Date(+x.timestamp*1000),txt:x.value_classification}));
+    S.fearGreed=S.fearGreedHistory[0];
+  }catch(e){console.warn('Fear&Greed:',e);}
+}
+async function loadHashrate(){
+  try{S.hashrate3m=await fetchJ('https://mempool.space/api/v1/mining/hashrate/3m',15000);}
+  catch(e){console.warn('Hashrate:',e);}
+}
+async function loadEURUSD(){
+  try{
+    const d=await fetchJ('https://api.binance.com/api/v3/ticker/24hr?symbol=EURUSDT',8000);
+    S.eurusd=+d.lastPrice;
+    S.dxy=(1/S.eurusd)*57.6;
+  }catch(e){S.eurusd=1.085;S.dxy=53.1;console.warn('EURUSD fallback');}
+}
+async function loadFEDFunds(){
+  try{
+    const t=await fetchT('https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS',8000);
+    const lines=t.trim().split('\n');
+    const last=lines.at(-1).split(',');
+    if(!isNaN(+last[1])) S.fedfunds=+last[1];
+  }catch(e){/* CORS expected; use fallback 5.33 */}
+}
+
+// ── MATH ──
+function daysSinceGenesis(d=new Date()){return Math.floor((d-new Date('2009-01-03'))/86400000);}
+function plFairValue(days){return Math.exp(-17.01+5.84*Math.log(days));}
+function plBands(days){const fv=plFairValue(days);return{fv,upper:fv*Math.exp(0.45),lower:fv*Math.exp(-0.60)};}
+
+function halvingInfo(now=new Date()){
+  const H=S.halvings;
+  let last=H[0],next=H.at(-1);
+  for(let i=0;i<H.length-1;i++){if(H[i].date<=now&&H[i+1].date>now){last=H[i];next=H[i+1];break;}}
+  const dsl=Math.floor((now-last.date)/86400000);
+  const dtn=Math.floor((next.date-now)/86400000);
+  const cl=Math.floor((next.date-last.date)/86400000);
+  const prog=dsl/cl;
+  let phase,phaseC;
+  if(dsl<180){phase='Akkumulation';phaseC='#3b82f6';}
+  else if(dsl<365){phase='Früh-Bullenmarkt';phaseC='#22c55e';}
+  else if(dsl<548){phase='Bullenmarkt';phaseC='#84cc16';}
+  else if(dsl<730){phase='Euphorie / Peak';phaseC='#eab308';}
+  else if(dsl<1095){phase='Bärenmarkt';phaseC='#ef4444';}
+  else{phase='Kapitulation / Boden';phaseC='#f97316';}
+  return{last,next,dsl,dtn,prog,cl,phase,phaseC,months:(dsl/30.44).toFixed(1)};
+}
+
+function histVol(prices,w=60){
+  if(!prices||prices.length<w+2) return 0.65;
+  const sl=prices.slice(-w-1);
+  const rets=sl.slice(1).map((p,i)=>Math.log(p[1]/sl[i][1]));
+  const m=rets.reduce((a,b)=>a+b,0)/rets.length;
+  return Math.sqrt(rets.reduce((a,b)=>a+(b-m)**2,0)/rets.length*365);
+}
+function histDrift(prices,w=365){
+  if(!prices||prices.length<2) return 0;
+  const sl=prices.slice(-Math.min(w+1,prices.length));
+  const rets=sl.slice(1).map((p,i)=>Math.log(p[1]/sl[i][1]));
+  return rets.reduce((a,b)=>a+b,0)/rets.length;
+}
+
+// Normal quantile (Abramowitz & Stegun rational approx)
+function normInv(p){
+  const a=[-3.969683028665376e1,2.209460984245205e2,-2.759285104469687e2,1.383577518672690e2,-3.066479806614716e1,2.506628277459239];
+  const b=[-5.447609879822406e1,1.615858368580409e2,-1.556989798598866e2,6.680131188771972e1,-1.328068155288572e1];
+  const c=[-7.784894002430293e-3,-3.223964580411365e-1,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783];
+  const d2=[7.784695709041462e-3,3.224671290700398e-1,2.445134137142996,3.754408661907416];
+  const q=p<.5?p:1-p; let r;
+  if(q<.02425){r=Math.sqrt(-2*Math.log(q));r=(((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5])/((((d2[0]*r+d2[1])*r+d2[2])*r+d2[3])*r+1);}
+  else{r=q-.5;const r2=r*r;r=(((((a[0]*r2+a[1])*r2+a[2])*r2+a[3])*r2+a[4])*r2+a[5])*r/(((((b[0]*r2+b[1])*r2+b[2])*r2+b[3])*r2+b[4])*r2+1);}
+  return p<.5?-r:r;
+}
+function gbmPct(price,drift,vol,days,q){
+  const dd=1/365,mu=(drift-0.5*vol*vol)*days*dd,sigma=vol*Math.sqrt(days*dd);
+  return price*Math.exp(mu+sigma*normInv(q));
+}
+
+function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+function runMC(price,annVol,annDrift,days,n=10000){
+  const dd=1/365,dv=annVol*Math.sqrt(dd),mu=annDrift*dd-0.5*annVol*annVol*dd;
+  const paths=new Float64Array(n);
+  for(let i=0;i<n;i++){
+    let lp=Math.log(price),v=dv;
+    for(let t=0;t<days;t++){
+      v=0.94*v+0.06*dv; v=Math.max(dv*.15,Math.min(dv*5,v));
+      // Drift-Decay: verhindert Trend-Extrapolation
+      const drift_t=mu*Math.max(0,1-t/days);
+      lp+=drift_t+v*randn();
+    }
+    paths[i]=Math.exp(lp);
+  }
+  paths.sort();
+  const p=q=>paths[Math.floor(n*q)];
+  const mean=Array.from(paths).reduce((a,b)=>a+b,0)/n;
+  const probDown=paths.filter(x=>x<price).length/n;
+  return{p10:p(.10),p25:p(.25),p50:p(.50),p75:p(.75),p90:p(.90),mean,probDown,paths};
+}
+
+function calcCategories(paths,price){
+  const n=paths.length;
+  return{
+    crash:paths.filter(p=>p<price*.6).length/n,
+    bear:paths.filter(p=>p>=price*.6&&p<price*.8).length/n,
+    neutral:paths.filter(p=>p>=price*.8&&p<price*1.2).length/n,
+    bull:paths.filter(p=>p>=price*1.2&&p<price*2.0).length/n,
+    euphoria:paths.filter(p=>p>=price*2.0).length/n,
+  };
+}
+
+// Technical indicators
+function calcMA(arr,p){return arr.map((_,i)=>i<p-1?null:arr.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p);}
+function calcEMA(arr,p){const k=2/(p+1),r=[arr[0]];for(let i=1;i<arr.length;i++)r.push(arr[i]*k+r[i-1]*(1-k));return r;}
+function calcRSI(arr,p=14){
+  const r=new Array(arr.length).fill(null);if(arr.length<p+1)return r;
+  let ag=0,al=0;
+  for(let i=1;i<=p;i++){const d=arr[i]-arr[i-1];if(d>=0)ag+=d;else al-=d;}
+  ag/=p;al/=p;r[p]=100-100/(1+ag/(al+1e-10));
+  for(let i=p+1;i<arr.length;i++){const d=arr[i]-arr[i-1],g=d>=0?d:0,l=d<0?-d:0;ag=(ag*(p-1)+g)/p;al=(al*(p-1)+l)/p;r[i]=100-100/(1+ag/(al+1e-10));}
+  return r;
+}
+function calcMACD(arr,f=12,s=26,sig=9){
+  const ef=calcEMA(arr,f),es=calcEMA(arr,s);
+  const macd=ef.map((v,i)=>v-es[i]);
+  const signal=calcEMA(macd,sig);
+  return{macd,signal,hist:macd.map((v,i)=>v-signal[i])};
+}
+
+// ── CALCULATIONS ──
+function calcPowerLaw(){
+  const days=daysSinceGenesis();
+  const{fv,upper,lower}=plBands(days);
+  const price=S.price||fv;
+  const dev=(price-fv)/fv*100;
+  let rating,ratingC;
+  if(price<lower*0.9){rating='Stark unterbewertet';ratingC='#22c55e';}
+  else if(price<fv*.92){rating='Unterbewertet';ratingC='#84cc16';}
+  else if(price<fv*1.08){rating='Fair bewertet';ratingC='#eab308';}
+  else if(price<upper*1.1){rating='Überbewertet';ratingC='#f97316';}
+  else{rating='Stark überbewertet';ratingC='#ef4444';}
+  const plScore=Math.max(5,Math.min(95,100-((price/fv-0.3)/3.5)*90));
+  S.powerlaw={fv,upper,lower,dev,rating,ratingC,price,plScore,days};
+  return S.powerlaw;
+}
+
+function calcGIS(){
+  const inds=[];
+  // 1. MVRV via Power-Law (20%)
+  let mvrvS=50;
+  if(S.price&&S.powerlaw){mvrvS=Math.max(5,Math.min(95,100-((S.price/S.powerlaw.fv-0.3)/3.5)*90));}
+  inds.push({name:'MVRV Z-Score (PL-Approx.)',s:mvrvS,w:.20,src:'Power-Law'});
+  // 2. RSI Weekly (15%)
+  let rsiS=50;
+  if(S.priceHistory&&S.priceHistory.length>20){
+    const ph=S.priceHistory;
+    const weekly=ph.filter((_,i)=>i%7===0).map(d=>d[1]);
+    if(weekly.length>14){
+      const rv=calcRSI(weekly,14).filter(v=>v!==null);
+      if(rv.length) rsiS=Math.max(5,Math.min(95,100-((rv.at(-1)-20)/70)*90));
+    }
+  }
+  inds.push({name:'RSI Weekly (14)',s:rsiS,w:.15,src:'Blockchain.info'});
+  // 3. Fear & Greed (10%)
+  let fgS=50;
+  if(S.fearGreed) fgS=Math.max(5,Math.min(95,90-((S.fearGreed.val-10)/80)*80));
+  inds.push({name:'Fear & Greed Index',s:fgS,w:.10,src:'alternative.me'});
+  // 4. Hashrate Trend (10%)
+  let hrS=50;
+  if(S.hashrate3m&&S.hashrate3m.hashrates&&S.hashrate3m.hashrates.length>10){
+    const hrs=S.hashrate3m.hashrates,f=hrs[0].avgHashrate,l=hrs.at(-1).avgHashrate;
+    hrS=Math.max(5,Math.min(95,50+(l-f)/f*100));
+  }
+  inds.push({name:'Hashrate Trend (90d)',s:hrS,w:.10,src:'mempool.space'});
+  // 5. ETF Net Flows (15%) — CORS-limitiert
+  inds.push({name:'ETF Net Flows (Farside)',s:50,w:.15,src:'n/v (CORS)',na:true});
+  // 6. Makro Fed (15%)
+  const macroS=Math.max(5,Math.min(95,90-((S.fedfunds-1)/6)*60));
+  inds.push({name:'Makro (Fed Funds Rate)',s:macroS,w:.15,src:`FRED: ${S.fedfunds.toFixed(2)}%`});
+  // 7. DXY (10%)
+  let dxyS=50;
+  if(S.dxy) dxyS=Math.max(5,Math.min(95,90-((S.dxy-88)/25)*80));
+  inds.push({name:'DXY Index',s:dxyS,w:.10,src:'Binance EUR/USDT'});
+  const gis=inds.reduce((sum,x)=>sum+x.s*x.w,0);
+  S.gis={score:gis,inds};
+  return S.gis;
+}
+
+function calcCycleScore(){
+  const h=halvingInfo();
+  const d=h.dsl;
+  let s=d<180?75:d<365?80:d<548?70:d<730?50:d<1095?30:55;
+  S.cycleScore=s; return s;
+}
+
+function calcGWS(){
+  const gws=(S.gis?.score||50)*0.30+(S.powerlaw?.plScore||50)*0.50+(S.cycleScore||50)*0.20;
+  S.gws=gws; return gws;
+}
+
+// ── RENDERERS ──
+function render1(){
+  const pr=S.price,ch=S.change24h,cap=S.marketCap,vol=S.vol24h,dxy=S.dxy,fg=S.fearGreed;
+  const prS=pr?fmtU(pr):'–';
+  const chS=ch!=null?(ch>=0?'+':'')+ch.toFixed(2)+'%':'–';
+  const chC=ch>=0?'pos':'neg';
+  el('s1').innerHTML=`
+<div class="row g-2 align-items-center mb-3">
+  <div class="col-auto">
+    <div class="price-big">${prS}</div>
+    <div class="chg ${chC}">${chS} (24h)</div>
+  </div>
+  <div class="col">
+    <div class="row g-2">
+      <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Market Cap</div><div class="mval" style="font-size:.9rem">${cap?fmtK(cap):'–'}</div></div></div>
+      <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Vol 24h</div><div class="mval" style="font-size:.9rem">${vol?fmtK(vol):'–'}</div></div></div>
+      <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">DXY Index</div><div class="mval" style="font-size:.9rem">${S.dxy?S.dxy.toFixed(1):'–'}</div></div></div>
+      <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Fear &amp; Greed</div><div class="mval" style="font-size:.85rem;color:${fg?scoreColor(fg.val):'inherit'}">${fg?fg.val+' · '+fg.txt:'–'}</div></div></div>
+    </div>
+  </div>
+</div>
+<div style="font-size:.72rem;color:var(--muted)">
+  ${new Date().toLocaleString('de-DE')} · EUR/USD: ${S.eurusd?.toFixed(4)||'–'} · Fed Funds: ${S.fedfunds.toFixed(2)}%
+</div>`;
+  el('upd').textContent='Aktualisiert: '+new Date().toLocaleTimeString('de-DE');
+}
+
+function render2(){
+  const h=halvingInfo();
+  const pct=Math.min(100,h.prog*100).toFixed(1);
+  el('s2').innerHTML=`
+<table class="tbl mb-3">
+  <tr><td style="color:var(--muted)">Letztes Halving</td><td><strong>${h.last.date.toLocaleDateString('de-DE')}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Nächstes Halving</td><td><strong>${h.next.date.toLocaleDateString('de-DE')}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Tage seit Halving</td><td><strong>${h.dsl}</strong> (${h.months} Monate)</td></tr>
+  <tr><td style="color:var(--muted)">Tage bis Halving</td><td><strong>${h.dtn}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Zyklusphase</td><td><strong style="color:${h.phaseC}">${h.phase}</strong></td></tr>
+</table>
+<div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">Zyklus-Fortschritt: ${pct}%</div>
+<div class="cbar"><div class="cbar-fill" style="width:${pct}%;background:linear-gradient(90deg,${h.phaseC},${h.phaseC}88)"></div></div>
+<div class="d-flex justify-content-between" style="font-size:.68rem;color:var(--muted)">
+  <span>${h.last.date.getFullYear()}</span><span>${h.next.date.getFullYear()}</span>
+</div>`;
+}
+
+function render3(){
+  const{score,inds}=S.gis;
+  const lbl=scoreLabel(score);
+  const rows=inds.map(ind=>`
+<div class="srow">
+  <div class="slabel">${ind.name}${ind.na?' <span style="font-size:.65rem;color:var(--muted)">(n/v)</span>':''}</div>
+  <div class="sbar-w"><div class="sbar-f" style="width:${ind.s}%;background:${scoreColor(ind.s)}"></div></div>
+  <div class="sval" style="color:${scoreColor(ind.s)}">${ind.s.toFixed(0)}</div>
+  <div class="swt">${(ind.w*100).toFixed(0)}%</div>
+</div>`).join('');
+  el('s3').innerHTML=`
+<div class="d-flex align-items-center gap-3 mb-3">
+  <div>
+    <div style="font-size:.72rem;color:var(--muted)">GIS-Gesamtscore</div>
+    <div style="font-size:1.9rem;font-weight:800;color:${scoreColor(score)}">${score.toFixed(1)}<span style="font-size:.9rem;color:var(--muted)">/100</span></div>
+  </div>
+  <span class="verdict ${lbl.c}">${lbl.t}</span>
+</div>
+${rows}
+<div style="font-size:.68rem;color:var(--muted);margin-top:8px">Score: 0=Extrem Bärisch · 50=Neutral · 100=Extrem Bullisch &nbsp;|&nbsp; ETF-Flows: CORS-Restriktion, Wert neutral gesetzt</div>`;
+}
+
+function render4(){
+  const pl=S.powerlaw,days=daysSinceGenesis();
+  el('s4').innerHTML=`
+<table class="tbl mb-2">
+  <tr><td style="color:var(--muted)">Fair Value (Power-Law)</td><td><strong>${fmtU(pl.fv)}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Aktueller Preis</td><td><strong>${fmtU(pl.price)}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Abweichung</td><td><strong style="color:${pl.dev>=0?'var(--red)':'var(--green)'}">${pl.dev>=0?'+':''}${pl.dev.toFixed(1)}%</strong></td></tr>
+  <tr><td style="color:var(--muted)">Oberes Band (+1σ)</td><td>${fmtU(pl.upper)}</td></tr>
+  <tr><td style="color:var(--muted)">Unteres Band (−1σ)</td><td>${fmtU(pl.lower)}</td></tr>
+  <tr><td style="color:var(--muted)">Bewertung</td><td><strong style="color:${pl.ratingC}">${pl.rating}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Tage seit Genesis</td><td>${days.toLocaleString('de-DE')}</td></tr>
+</table>
+<div style="font-size:.68rem;color:var(--muted)">ln(P) = −17.01 + 5.84 · ln(Tage seit 03.01.2009)</div>`;
+}
+
+function render5and8(){
+  const cy=S.cycleScore,gws=S.gws,lbl=scoreLabel(gws),h=halvingInfo();
+  el('s5').innerHTML=`
+<div class="text-center mb-3">
+  <div class="gws-num" style="color:${scoreColor(gws)}">${gws.toFixed(1)}</div>
+  <span class="verdict ${lbl.c} mt-1 d-inline-block">${lbl.t}</span>
+  <div style="font-size:.7rem;color:var(--muted);margin-top:8px">GWS = GIS×30% + Power-Law×50% + Zyklus×20%</div>
+</div>
+<hr style="border-color:var(--border)">
+<div class="row g-2 text-center" style="font-size:.78rem">
+  <div class="col-4"><div style="color:var(--muted)">GIS</div><div style="font-weight:700;color:${scoreColor(S.gis?.score||50)}">${(S.gis?.score||50).toFixed(0)}</div><div style="font-size:.65rem;color:var(--muted)">×30%</div></div>
+  <div class="col-4"><div style="color:var(--muted)">Power-Law</div><div style="font-weight:700;color:${scoreColor(S.powerlaw?.plScore||50)}">${(S.powerlaw?.plScore||50).toFixed(0)}</div><div style="font-size:.65rem;color:var(--muted)">×50%</div></div>
+  <div class="col-4"><div style="color:var(--muted)">Zyklus</div><div style="font-weight:700;color:${scoreColor(cy)}">${cy}</div><div style="font-size:.65rem;color:var(--muted)">×20%</div></div>
+</div>`;
+
+  const entry=h.dsl<180?'Sehr guter Einstiegspunkt':h.dsl<365?'Guter Einstiegspunkt':h.dsl<548?'Moderater Einstieg':h.dsl<730?'Vorsicht — nahe Euphorie':h.dsl<1095?'Bärenmarkt — abwarten':'Boden-Phase — DCA empfohlen';
+  const halcat=h.dsl<730?'Halving-Katalysator aktiv ✅':'Halving-Effekt nachlassend';
+  el('s8').innerHTML=`
+<div class="mb-3">
+  <div style="font-size:.72rem;color:var(--muted)">Aktuelle Zyklusphase</div>
+  <div style="font-size:1.15rem;font-weight:700;color:${h.phaseC}">${h.phase}</div>
+</div>
+<table class="tbl">
+  <tr><td style="color:var(--muted)">Zyklusposition</td><td><strong>${(h.prog*100).toFixed(0)}%</strong></td></tr>
+  <tr><td style="color:var(--muted)">Einstiegs-Signal</td><td><strong>${entry}</strong></td></tr>
+  <tr><td style="color:var(--muted)">Halving-Katalysator</td><td>${halcat}</td></tr>
+  <tr><td style="color:var(--muted)">Zyklus-Score</td><td><strong style="color:${scoreColor(cy)}">${cy}/100</strong></td></tr>
+</table>`;
+}
+
+function render6and7and9(){
+  if(!S.price){el('s6').innerHTML='<div class="ld">Keine Preisdaten verfügbar.</div>';return;}
+  const annVol=histVol(S.priceHistory,60);
+  const annDrift=histDrift(S.priceHistory,365);
+  const price=S.price;
+
+  const mc3=runMC(price,annVol,annDrift,91,10000);
+  const mc6=runMC(price,annVol,annDrift,182,10000);
+  S.mc3m=mc3; S.mc6m=mc6;
+
+  const cats3=calcCategories(mc3.paths,price);
+  const cats6=calcCategories(mc6.paths,price);
+
+  // Analytische Bänder für Chart
+  const xDays=Array.from({length:182},(_,i)=>i+1);
+  const now=new Date();
+  const xDates=xDays.map(d=>{const dt=new Date(now);dt.setDate(dt.getDate()+d);return dt.toISOString().split('T')[0];});
+  const P=(q,d)=>gbmPct(price,annDrift,annVol,d,q);
+
+  const p10=xDays.map(d=>P(.10,d)),p25=xDays.map(d=>P(.25,d)),p50=xDays.map(d=>P(.50,d)),p75=xDays.map(d=>P(.75,d)),p90=xDays.map(d=>P(.90,d));
+
+  const plCfg={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:'#94a3b8',size:10},
+    xaxis:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8'},
+    yaxis:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',tickprefix:'$',tickformat:',.0f'},
+    margin:{t:10,b:40,l:80,r:10},showlegend:true,height:320,
+    legend:{x:0,y:1,bgcolor:'rgba(0,0,0,.4)',bordercolor:'#2d3a50',borderwidth:1,font:{size:9}},
+    shapes:[
+      {type:'line',x0:xDates[90],x1:xDates[90],y0:0,y1:1,yref:'paper',line:{color:'#eab308',dash:'dash',width:1}},
+      {type:'line',x0:xDates[181],x1:xDates[181],y0:0,y1:1,yref:'paper',line:{color:'#ef4444',dash:'dash',width:1}},
+    ],
+    annotations:[
+      {x:xDates[90],y:1,yref:'paper',text:'3M',showarrow:false,font:{color:'#eab308',size:9},xanchor:'left'},
+      {x:xDates[181],y:1,yref:'paper',text:'6M',showarrow:false,font:{color:'#ef4444',size:9},xanchor:'left'},
+    ]};
+
+  const mcTraces=[
+    {x:xDates,y:p90,fill:'none',line:{color:'rgba(0,0,0,0)',width:0},name:'',showlegend:false,type:'scatter',mode:'lines'},
+    {x:xDates,y:p75,fill:'tonexty',fillcolor:'rgba(34,197,94,.07)',line:{color:'rgba(34,197,94,.25)',width:.5},name:'P25–P75',type:'scatter',mode:'lines'},
+    {x:xDates,y:p25,fill:'tonexty',fillcolor:'rgba(34,197,94,.12)',line:{color:'rgba(34,197,94,.25)',width:.5},name:'P10–P90',type:'scatter',mode:'lines',showlegend:false},
+    {x:xDates,y:p10,fill:'tonexty',fillcolor:'rgba(34,197,94,.07)',line:{color:'rgba(34,197,94,.15)',width:.5},name:'',type:'scatter',mode:'lines',showlegend:false},
+    {x:xDates,y:p50,line:{color:'#f7931a',width:2.5},name:'Median P50',type:'scatter',mode:'lines'},
+  ];
+
+  const kpi=(mc,label)=>`
+<div class="p-3 rounded" style="background:var(--bg-card2)">
+  <div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">${label}</div>
+  <div class="row text-center g-1">
+    <div class="col"><div style="color:var(--red);font-size:.68rem">P10 Pessim.</div><div style="font-weight:700;font-size:.9rem">${fmtU(mc.p10)}</div></div>
+    <div class="col"><div style="color:var(--orange);font-size:.68rem">P50 Median</div><div style="font-weight:700;font-size:.9rem">${fmtU(mc.p50)}</div></div>
+    <div class="col"><div style="color:var(--green);font-size:.68rem">P90 Optim.</div><div style="font-weight:700;font-size:.9rem">${fmtU(mc.p90)}</div></div>
+  </div>
+  <div style="font-size:.7rem;color:var(--muted);margin-top:6px">Downside: <strong style="color:${mc.probDown>.5?'var(--red)':'var(--green)'}">${(mc.probDown*100).toFixed(1)}%</strong> · Mean: ${fmtU(mc.mean)}</div>
+</div>`;
+
+  el('s6').innerHTML=`
+<div class="row g-3 mb-3">
+  <div class="col-md-6">${kpi(mc3,'3-Monats Prognose (91 Tage · 10.000 Pfade)')}</div>
+  <div class="col-md-6">${kpi(mc6,'6-Monats Prognose (182 Tage · 10.000 Pfade)')}</div>
+</div>
+<div id="mc-chart"></div>
+<div style="font-size:.68rem;color:var(--muted);margin-top:6px">
+  Hist. Vol (60d ann.): <strong>${(annVol*100).toFixed(1)}%</strong> · Hist. Drift (1J ann.): <strong>${(annDrift*365*100).toFixed(1)}%</strong> · GBM mit HAR-Vol-Mean-Reversion (α=0.06) &amp; Drift-Decay
+</div>`;
+  Plotly.newPlot('mc-chart',mcTraces,plCfg,{responsive:true,displayModeBar:false});
+
+  // Section 7
+  const catCard=(pct,color,name)=>`
+<div class="cat-c" style="border-color:${color}30;background:${color}10">
+  <div class="cat-p" style="color:${color}">${(pct*100).toFixed(0)}%</div>
+  <div class="cat-n">${name}</div>
+</div>`;
+  el('s7').innerHTML=`
+<div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">In 3 Monaten:</div>
+<div class="cat-g mb-3">
+  ${catCard(cats3.crash,'#ef4444','Crash<br>&lt;−40%')}
+  ${catCard(cats3.bear,'#f97316','Bär<br>−20 bis −40%')}
+  ${catCard(cats3.neutral,'#eab308','Neutral<br>±20%')}
+  ${catCard(cats3.bull,'#22c55e','Bull<br>+20–100%')}
+  ${catCard(cats3.euphoria,'#a855f7','Euphorie<br>&gt;+100%')}
+</div>
+<div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">In 6 Monaten:</div>
+<div class="cat-g">
+  ${catCard(cats6.crash,'#ef4444','Crash<br>&lt;−40%')}
+  ${catCard(cats6.bear,'#f97316','Bär<br>−20 bis −40%')}
+  ${catCard(cats6.neutral,'#eab308','Neutral<br>±20%')}
+  ${catCard(cats6.bull,'#22c55e','Bull<br>+20–100%')}
+  ${catCard(cats6.euphoria,'#a855f7','Euphorie<br>&gt;+100%')}
+</div>`;
+
+  // Section 9
+  const pl=S.powerlaw,gws=S.gws;
+  const outlook=gws>=60?'BULLISCH':gws>=45?'NEUTRAL':'BÄRISCH';
+  const outC=gws>=60?'vbull':gws>=45?'vneut':'vbear';
+  el('s9').innerHTML=`
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="p-3 rounded" style="background:var(--bg-card2)">
+      <div style="color:var(--orange);font-weight:700;margin-bottom:6px;font-size:.85rem">3-Monats Preis-Range (P25–P75)</div>
+      <div style="font-size:1.5rem;font-weight:800">${fmtU(mc3.p25)} – ${fmtU(mc3.p75)}</div>
+      <div class="d-flex gap-3 mt-2" style="font-size:.8rem">
+        <span style="color:var(--red)">P10: ${fmtU(mc3.p10)}</span>
+        <span>Median: ${fmtU(mc3.p50)}</span>
+        <span style="color:var(--green)">P90: ${fmtU(mc3.p90)}</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="p-3 rounded" style="background:var(--bg-card2)">
+      <div style="color:var(--orange);font-weight:700;margin-bottom:6px;font-size:.85rem">6-Monats Preis-Range (P25–P75)</div>
+      <div style="font-size:1.5rem;font-weight:800">${fmtU(mc6.p25)} – ${fmtU(mc6.p75)}</div>
+      <div class="d-flex gap-3 mt-2" style="font-size:.8rem">
+        <span style="color:var(--red)">P10: ${fmtU(mc6.p10)}</span>
+        <span>Median: ${fmtU(mc6.p50)}</span>
+        <span style="color:var(--green)">P90: ${fmtU(mc6.p90)}</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="p-3 rounded d-flex align-items-center gap-3" style="background:var(--bg-card2)">
+  <span class="verdict ${outC}" style="font-size:1.1rem">${outlook}</span>
+  <div style="font-size:.8rem;color:var(--muted)">GWS: ${gws.toFixed(1)} · Power-Law: ${pl?.rating||'–'} · Fair Value: ${pl?fmtU(pl.fv):'–'}</div>
+</div>`;
+}
+
+function render10(){
+  if(!S.ohlcv||!S.ohlcv.length){el('s10').innerHTML='<div class="ld">Keine OHLCV-Daten (Binance API nicht erreichbar)</div>';return;}
+
+  function buildChart(days){
+    const data=S.ohlcv.slice(-days);
+    const dates=data.map(d=>d.date.toISOString().split('T')[0]);
+    const all=S.ohlcv;
+    const allC=all.map(d=>d.c),allD=all.map(d=>d.date.toISOString().split('T')[0]);
+    const sl=all.length-days;
+
+    const ma20=calcMA(allC,20).slice(sl);
+    const ma50=calcMA(allC,50).slice(sl);
+    const ma200=calcMA(allC,200).slice(sl);
+    const ema20=calcEMA(allC,20).slice(sl);
+    const rsi=calcRSI(allC,14).slice(sl);
+    const{macd,signal:sig,hist:mhist}=calcMACD(allC);
+    const ma730=calcMA(allC,730).slice(sl);
+    const ma111=calcMA(allC,111).slice(sl);
+    const ma350=calcMA(allC,350).slice(sl);
+    const ma350x2=ma350.map(v=>v?v*2:null);
+    const ma1400=calcMA(allC,1400).slice(sl);
+    const ma350gr=ma350.map(v=>v?v*1.618:null);
+    const ma730x5=ma730.map(v=>v?v*5:null);
+    const macdSl=macd.slice(sl),sigSl=sig.slice(sl),histSl=mhist.slice(sl);
+
+    const volC=data.map(d=>d.c>=d.o?'rgba(34,197,94,.65)':'rgba(239,68,68,.65)');
+    const histC=histSl.map(v=>v>=0?'rgba(34,197,94,.7)':'rgba(239,68,68,.7)');
+
+    // Cross detection
+    const anns=[];
+    for(let i=1;i<ma50.length;i++){
+      if(!ma200[i]||!ma50[i]||!ma200[i-1]||!ma50[i-1]) continue;
+      if(ma50[i-1]<=ma200[i-1]&&ma50[i]>ma200[i])
+        anns.push({x:dates[i],y:data[i].h*1.02,text:'Golden Cross',showarrow:true,arrowhead:2,font:{color:'#eab308',size:9},arrowcolor:'#eab308',ax:0,ay:-25});
+      else if(ma50[i-1]>=ma200[i-1]&&ma50[i]<ma200[i])
+        anns.push({x:dates[i],y:data[i].h*1.02,text:'Death Cross',showarrow:true,arrowhead:2,font:{color:'#ef4444',size:9},arrowcolor:'#ef4444',ax:0,ay:-25});
+    }
+
+    const show2yma=el('o2yma').checked,showPi=el('opi').checked,show200w=el('o200w').checked,showGR=el('ogr').checked;
+
+    const traces=[
+      {type:'candlestick',x:dates,open:data.map(d=>d.o),high:data.map(d=>d.h),low:data.map(d=>d.l),close:data.map(d=>d.c),
+       name:'BTC/USD',increasing:{line:{color:'#22c55e'},fillcolor:'#22c55e'},decreasing:{line:{color:'#ef4444'},fillcolor:'#ef4444'},yaxis:'y'},
+      {x:dates,y:ma20,type:'scatter',mode:'lines',name:'MA20',line:{color:'#60a5fa',width:1},yaxis:'y'},
+      {x:dates,y:ma50,type:'scatter',mode:'lines',name:'MA50',line:{color:'#a78bfa',width:1.5},yaxis:'y'},
+      {x:dates,y:ma200,type:'scatter',mode:'lines',name:'MA200',line:{color:'#f59e0b',width:2},yaxis:'y'},
+      {x:dates,y:ema20,type:'scatter',mode:'lines',name:'EMA20',line:{color:'#22d3ee',width:1,dash:'dot'},yaxis:'y'},
+    ];
+
+    if(show2yma){
+      traces.push({x:dates,y:ma730,type:'scatter',mode:'lines',name:'2Y MA',line:{color:'#ec4899',width:1.5,dash:'dot'},yaxis:'y'});
+      traces.push({x:dates,y:ma730x5,type:'scatter',mode:'lines',name:'2Y MA ×5',line:{color:'#f43f5e',width:1,dash:'dashdot'},yaxis:'y'});
+    }
+    if(showPi){
+      traces.push({x:dates,y:ma111,type:'scatter',mode:'lines',name:'Pi 111d',line:{color:'#06b6d4',width:1.5,dash:'dashdot'},yaxis:'y'});
+      traces.push({x:dates,y:ma350x2,type:'scatter',mode:'lines',name:'Pi 350d×2',line:{color:'#0891b2',width:1.5,dash:'dashdot'},yaxis:'y'});
+    }
+    if(show200w) traces.push({x:dates,y:ma1400,type:'scatter',mode:'lines',name:'200W MA',line:{color:'#84cc16',width:2,dash:'longdash'},yaxis:'y'});
+    if(showGR) traces.push({x:dates,y:ma350gr,type:'scatter',mode:'lines',name:'Golden Ratio (350d×1.618)',line:{color:'#fbbf24',width:1.5,dash:'dot'},yaxis:'y'});
+
+    traces.push({x:dates,y:data.map(d=>d.v),type:'bar',name:'Volumen',marker:{color:volC},yaxis:'y2',opacity:.75});
+    traces.push({x:dates,y:rsi,type:'scatter',mode:'lines',name:'RSI(14)',line:{color:'#a78bfa',width:1.5},yaxis:'y3'});
+    traces.push({x:[dates[0],dates.at(-1)],y:[70,70],type:'scatter',mode:'lines',line:{color:'#ef4444',width:.8,dash:'dash'},showlegend:false,yaxis:'y3'});
+    traces.push({x:[dates[0],dates.at(-1)],y:[30,30],type:'scatter',mode:'lines',line:{color:'#22c55e',width:.8,dash:'dash'},showlegend:false,yaxis:'y3'});
+    traces.push({x:dates,y:macdSl,type:'scatter',mode:'lines',name:'MACD',line:{color:'#60a5fa',width:1.5},yaxis:'y4'});
+    traces.push({x:dates,y:sigSl,type:'scatter',mode:'lines',name:'Signal',line:{color:'#f97316',width:1.5},yaxis:'y4'});
+    traces.push({x:dates,y:histSl,type:'bar',name:'MACD Hist.',marker:{color:histC},yaxis:'y4'});
+
+    const layout={
+      paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#94a3b8',size:10},height:750,
+      margin:{t:12,b:35,l:75,r:12},
+      showlegend:true,
+      legend:{x:0,y:1,bgcolor:'rgba(10,14,26,.85)',bordercolor:'#2d3a50',borderwidth:1,font:{size:9}},
+      xaxis:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',rangeslider:{visible:false}},
+      yaxis:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',domain:[.35,1],tickprefix:'$',tickformat:',.0f'},
+      yaxis2:{showgrid:false,color:'#94a3b8',domain:[.22,.34],showticklabels:false,title:{text:'Vol',font:{size:8}}},
+      yaxis3:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',domain:[.12,.21],range:[0,100],title:{text:'RSI',font:{size:8}}},
+      yaxis4:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',domain:[0,.11],title:{text:'MACD',font:{size:8}}},
+      annotations:anns,
+    };
+    if(el('chart10')) Plotly.react('chart10',traces,layout,{responsive:true,displayModeBar:true,modeBarButtonsToRemove:['select2d','lasso2d']});
+    else{el('s10').innerHTML='<div id="chart10"></div>';Plotly.newPlot('chart10',traces,layout,{responsive:true,displayModeBar:true,modeBarButtonsToRemove:['select2d','lasso2d']});}
+  }
+
+  el('s10').innerHTML='<div id="chart10"></div>';
+  buildChart(parseInt(el('cr').value));
+
+  el('cr').addEventListener('change',()=>buildChart(parseInt(el('cr').value)));
+  ['o2yma','opi','o200w','ogr'].forEach(id=>el(id).addEventListener('change',()=>buildChart(parseInt(el('cr').value))));
+}
+
+function render11(){
+  if(!S.fearGreed){el('s11').innerHTML='<div class="ld">F&G Daten nicht verfügbar</div>';return;}
+  const fg=S.fearGreed.val;
+  const fgC=fg>=75?'#ef4444':fg>=55?'#f97316':fg>=45?'#eab308':fg>=25?'#22c55e':'#06b6d4';
+  const fgT=fg>=75?'Extreme Gier':fg>=55?'Gier':fg>=45?'Neutral':fg>=25?'Angst':'Extreme Angst';
+
+  // SVG Gauge
+  function arc(cx,cy,r,startD,endD){
+    const sr=(startD-90)*Math.PI/180,er=(endD-90)*Math.PI/180;
+    const x1=cx+r*Math.cos(sr),y1=cy+r*Math.sin(sr);
+    const x2=cx+r*Math.cos(er),y2=cy+r*Math.sin(er);
+    return `M${cx},${cy}L${x1.toFixed(1)},${y1.toFixed(1)}A${r},${r} 0 0 1 ${x2.toFixed(1)},${y2.toFixed(1)}Z`;
+  }
+  // Needle: 0→180° left to right, fg=0→angle=180°, fg=100→angle=360°(=0°)
+  const needleDeg=180+(fg/100)*180; // 180 to 360
+  const nr=(needleDeg-90)*Math.PI/180;
+  const nx=(120+80*Math.cos(nr)).toFixed(1),ny=(120+80*Math.sin(nr)).toFixed(1);
+
+  const gauge=`<svg viewBox="0 0 240 145" style="width:100%;max-width:260px;display:block;margin:0 auto">
+    <path d="${arc(120,120,95,180,216)}" fill="#06b6d4" opacity=".85"/>
+    <path d="${arc(120,120,95,216,252)}" fill="#22c55e" opacity=".85"/>
+    <path d="${arc(120,120,95,252,288)}" fill="#eab308" opacity=".85"/>
+    <path d="${arc(120,120,95,288,324)}" fill="#f97316" opacity=".85"/>
+    <path d="${arc(120,120,95,324,360)}" fill="#ef4444" opacity=".85"/>
+    <circle cx="120" cy="120" r="72" fill="#111827"/>
+    <line x1="120" y1="120" x2="${nx}" y2="${ny}" stroke="${fgC}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="120" cy="120" r="5" fill="${fgC}"/>
+    <text x="12" y="132" font-size="8.5" fill="#94a3b8">Ext. Angst</text>
+    <text x="180" y="132" font-size="8.5" fill="#94a3b8">Ext. Gier</text>
+    <text x="120" y="113" text-anchor="middle" font-size="24" font-weight="800" fill="${fgC}">${fg}</text>
+    <text x="120" y="129" text-anchor="middle" font-size="10" fill="${fgC}">${fgT}</text>
+  </svg>`;
+
+  const now=Date.now(),oneY=365*24*3600e3;
+  const h1Y=S.fearGreedHistory.filter(d=>d.ts>now-oneY).reverse();
+  const comp=[
+    {lbl:'Gestern',v:S.fearGreedHistory[1]?.val},
+    {lbl:'Vor 7 Tagen',v:S.fearGreedHistory[7]?.val},
+    {lbl:'Vor 30 Tagen',v:S.fearGreedHistory[30]?.val},
+    {lbl:'Vor 1 Jahr',v:S.fearGreedHistory[Math.min(365,S.fearGreedHistory.length-1)]?.val},
+  ];
+
+  el('s11').innerHTML=`
+<div class="mb-3">${gauge}</div>
+<div class="row g-2 text-center mb-3">
+  ${comp.map(c=>`<div class="col-3"><div style="font-size:.65rem;color:var(--muted)">${c.lbl}</div><div style="font-weight:700;color:${c.v!=null?scoreColor(c.v):'var(--muted)'}">${c.v??'–'}</div></div>`).join('')}
+</div>
+<div id="fg-chart"></div>`;
+
+  Plotly.newPlot('fg-chart',[{
+    x:h1Y.map(d=>d.date.toISOString().split('T')[0]),
+    y:h1Y.map(d=>d.val),
+    type:'scatter',mode:'lines',name:'F&G',
+    line:{color:'#f7931a',width:1.5},fill:'tozeroy',fillcolor:'rgba(247,147,26,.12)',
+  }],{
+    paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:'#94a3b8',size:9},height:170,
+    margin:{t:5,b:28,l:36,r:8},
+    xaxis:{showgrid:false,color:'#94a3b8'},
+    yaxis:{showgrid:true,gridcolor:'#1e2d40',color:'#94a3b8',range:[0,100]},
+    shapes:[
+      {type:'line',x0:h1Y[0]?.date.toISOString().split('T')[0],x1:h1Y.at(-1)?.date.toISOString().split('T')[0],y0:75,y1:75,line:{color:'#ef4444',dash:'dash',width:.8}},
+      {type:'line',x0:h1Y[0]?.date.toISOString().split('T')[0],x1:h1Y.at(-1)?.date.toISOString().split('T')[0],y0:25,y1:25,line:{color:'#22c55e',dash:'dash',width:.8}},
+    ],
+    showlegend:false,
+  },{responsive:true,displayModeBar:false});
+}
+
+function render12(){
+  const gws=S.gws||50,pl=S.powerlaw,h=halvingInfo(),fg=S.fearGreed;
+  const annVol=histVol(S.priceHistory,60);
+  const verdict=gws>=60?'AKKUMULIEREN / LONG':gws>=45?'HALTEN / ABWARTEN':'VORSICHT / REDUZIEREN';
+  const vC=gws>=60?'vbull':gws>=45?'vneut':'vbear';
+
+  const bull=[],bear=[];
+  if(h.dsl<548) bull.push('Halving-Zyklus: Historisch bullisches Fenster aktiv');
+  if(pl&&pl.dev<-10) bull.push(`Power-Law: ${Math.abs(pl.dev).toFixed(0)}% unter Fair Value (${fmtU(pl.fv)})`);
+  if(fg&&fg.val<40) bull.push(`Fear & Greed: Contrarian-Signal (Angst-Zone: ${fg.val})`);
+  if(S.hashrate3m) bull.push('Hashrate: Steigende Netzwerk-Sicherheit (mempool.space)');
+  if(gws>60) bull.push(`GWS Composite Score: ${gws.toFixed(1)} — Starkes bullisches Signal`);
+
+  if(h.dsl>548&&h.dsl<1095) bear.push('Zyklus: Post-Peak-Phase — Historisch schwieriges Fenster');
+  if(pl&&pl.dev>50) bear.push(`Power-Law: ${pl.dev.toFixed(0)}% über Fair Value — Überbewertung`);
+  if(fg&&fg.val>75) bear.push(`Fear & Greed: Extreme Gier (${fg.val}) — Contrarian-Short-Signal`);
+  if(S.fedfunds>4.5) bear.push(`Makro: Hohe Fed Funds Rate (${S.fedfunds.toFixed(2)}%) belastet Risk Assets`);
+  if(annVol>0.65) bear.push(`Hohe Volatilität: ${(annVol*100).toFixed(0)}% ann. — erhöhtes Risiko`);
+
+  const macroSt=S.fedfunds>4?'Restriktiv':S.fedfunds>2?'Neutral':'Akkommodativ';
+  el('s12').innerHTML=`
+<div class="p-3 rounded mb-3 d-flex align-items-center gap-3" style="background:var(--bg-card2)">
+  <div>
+    <div style="font-size:.7rem;color:var(--muted)">Gesamturteil</div>
+    <div style="font-size:1.35rem;font-weight:900"><span class="verdict ${vC}">${verdict}</span></div>
+  </div>
+  <div style="font-size:.75rem;color:var(--muted)">GWS: ${gws.toFixed(1)} / 100<br>${pl?.rating||'–'} (PL)</div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div style="color:var(--green);font-weight:700;margin-bottom:8px;font-size:.82rem">✅ Bullische Faktoren</div>
+    ${bull.length?bull.map(f=>`<div style="font-size:.78rem;padding:4px 0;border-bottom:1px solid var(--border)">• ${f}</div>`).join(''):'<div style="font-size:.78rem;color:var(--muted)">Keine signifikanten bullischen Signale</div>'}
+  </div>
+  <div class="col-md-6">
+    <div style="color:var(--red);font-weight:700;margin-bottom:8px;font-size:.82rem">⚠️ Bärische Risiken</div>
+    ${bear.length?bear.map(f=>`<div style="font-size:.78rem;padding:4px 0;border-bottom:1px solid var(--border)">• ${f}</div>`).join(''):'<div style="font-size:.78rem;color:var(--muted)">Keine signifikanten bärischen Risiken</div>'}
+  </div>
+</div>
+<div class="row g-2">
+  <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Zyklus</div><div class="mval" style="color:${h.phaseC};font-size:.85rem">${h.phase}</div></div></div>
+  <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Power-Law</div><div class="mval" style="color:${pl?.ratingC||'var(--text)'};font-size:.85rem">${pl?.rating||'–'}</div></div></div>
+  <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Makro (Fed)</div><div class="mval" style="font-size:.85rem">${macroSt}</div></div></div>
+  <div class="col-6 col-md-3"><div class="mcard metric"><div class="mlabel">Volatilität ann.</div><div class="mval" style="font-size:.85rem;color:${annVol>.65?'var(--red)':annVol>.4?'var(--yellow)':'var(--green)'}">${(annVol*100).toFixed(0)}%</div></div></div>
+</div>
+<div class="mt-3 p-2 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);font-size:.7rem;color:var(--muted)">
+  ⚠️ <strong>Disclaimer:</strong> Diese Analyse dient ausschließlich zu Informationszwecken und stellt keine Anlageberatung dar. Kryptowährungen sind hochvolatile Vermögenswerte mit erheblichem Verlustrisiko. Vergangene Wertentwicklungen sind kein Indikator für zukünftige Ergebnisse.
+</div>`;
+}
+
+// ── MAIN ──
+async function init(){
+  await Promise.allSettled([
+    loadCoinGecko(), loadPriceHistory(), loadBinanceOHLCV(),
+    loadFearGreed(), loadHashrate(), loadEURUSD(), loadFEDFunds(),
+  ]);
+  calcPowerLaw(); calcGIS(); calcCycleScore(); calcGWS();
+  render1(); render2(); render3(); render4();
+  render5and8(); render6and7and9();
+  render10(); render11(); render12();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
