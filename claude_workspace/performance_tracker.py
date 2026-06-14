@@ -444,10 +444,12 @@ def main():
     ax3.plot(fan["date"], fan["p50"], color=C_ORG, lw=1.5, label="Median")
     ax3.axvline(vr["meta_test"]["date"].iloc[-1],
                 color=C_RED, lw=1.0, ls="--", alpha=0.7)
+    ax3.set_yscale("log")
     ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    ax3.yaxis.set_minor_formatter(plt.NullFormatter())
     ax3.legend(fontsize=7, facecolor=BG, edgecolor="#30363d", labelcolor=TXT)
     ax3.tick_params(axis="x", rotation=25)
-    sax(ax3, "90-Day Price Fan (HAR-vol seeded, drift decay)")
+    sax(ax3, "90-Day Price Fan — log scale (HAR-vol seeded, drift decay)")
 
     # P4 — Rolling DirAcc ─────────────────────────────────────
     ax4 = fig.add_subplot(gs[1, 0])
