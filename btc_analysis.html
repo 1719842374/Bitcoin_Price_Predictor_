@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitcoin Price Analysis Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<style>
+  :root {
+    --btc-orange: #f7931a;
+    --bg-main: #0a0e1a;
+    --bg-card: #111827;
+    --border-color: #2d3a50;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  .card-dark {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    color: var(--btc-orange);
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-number {
+    background: var(--btc-orange);
+    color: #000;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .metric-tile {
+    background: rgba(45,58,80,0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .metric-tile .label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .metric-tile .value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 4px;
+  }
+  .btc-price {
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: var(--btc-orange);
+    line-height: 1;
+  }
+  .price-change-pos { color: #22c55e; }
+  .price-change-neg { color: #ef4444; }
+  .live-dot {
+    width: 10px;
+    height: 10px;
+    background: #22c55e;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse-dot 1.5s infinite;
+    margin-right: 6px;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+  .spinner-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  .spinner-border-orange { color: var(--btc-orange); }
+  .indicator-bar-wrap { margin-bottom: 14px; }
+  .indicator-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+  }
+  .badge-verdict {
+    font-size: 0.9rem;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .gis-score-big {
+    font-size: 4rem;
+    font-weight: 900;
+    color: var(--btc-orange);
+    line-height: 1;
+  }
+  .gws-score-big {
+    font-size: 5rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .halving-phase-bar {
+    height: 24px;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    background: var(--border-color);
+  }
+  .phase-segment {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: rgba(0,0,0,0.8);
+  }
+  .halving-marker {
+    position: absolute;
+    top: -6px;
+    width: 3px;
+    height: 36px;
+    background: #fff;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+  .cat-tile {
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 8px;
+  }
+  .cat-tile .cat-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  .price-range-tile {
+    background: rgba(247,147,26,0.08);
+    border: 1px solid rgba(247,147,26,0.3);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .price-range-tile .timeframe { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; }
+  .price-range-tile .main-range { font-size: 1.4rem; font-weight: 800; color: var(--btc-orange); margin: 8px 0; }
+  .price-range-tile .sub-values { font-size: 0.8rem; color: var(--text-secondary); }
+  .summary-factor {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+  }
+  .summary-factor:last-child { border-bottom: none; }
+  .factor-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .header-bar {
+    background: linear-gradient(135deg, #0a0e1a 0%, #111827 100%);
+    border-bottom: 2px solid var(--btc-orange);
+    padding: 16px 0;
+    margin-bottom: 24px;
+  }
+  .btc-logo-text {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--btc-orange);
+    letter-spacing: -0.02em;
+  }
+  .btc-symbol {
+    font-size: 2rem;
+    color: var(--btc-orange);
+    margin-right: 8px;
+  }
+  footer {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    padding: 20px 0;
+    margin-top: 40px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+  .disclaimer-box {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+  .overlay-checkboxes label {
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+  .overlay-checkboxes input[type=checkbox] { accent-color: var(--btc-orange); }
+  #timeRangeSelect {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+  }
+  .fg-gauge-container { display: flex; flex-direction: column; align-items: center; }
+  .component-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .comp-item {
+    text-align: center;
+    flex: 1;
+    background: rgba(45,58,80,0.3);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .comp-item .comp-label { font-size: 0.7rem; color: var(--text-secondary); }
+  .comp-item .comp-val { font-size: 1.1rem; font-weight: 700; color: var(--btc-orange); }
+  .comp-item .comp-sub { font-size: 0.65rem; color: var(--text-muted); }
+  .mc-tiles { display: flex; gap: 16px; margin-top: 16px; }
+  .mc-tile {
+    flex: 1;
+    background: rgba(45,58,80,0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .mc-tile .mc-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; }
+  .mc-tile .mc-p50 { font-size: 1.6rem; font-weight: 800; color: var(--btc-orange); margin: 6px 0; }
+  .mc-tile .mc-sub { font-size: 0.75rem; color: var(--text-secondary); }
+  .fg-comparison {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 14px;
+  }
+  .fg-comp-item {
+    text-align: center;
+    background: rgba(45,58,80,0.3);
+    border-radius: 8px;
+    padding: 8px 14px;
+  }
+  .fg-comp-item .fg-comp-label { font-size: 0.7rem; color: var(--text-secondary); }
+  .fg-comp-item .fg-comp-val { font-size: 1.1rem; font-weight: 700; }
+  .status-tiles-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .status-tile {
+    flex: 1;
+    min-width: 120px;
+    background: rgba(45,58,80,0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .status-tile .st-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; }
+  .status-tile .st-val { font-size: 0.9rem; font-weight: 700; margin-top: 4px; }
+  @media (max-width: 768px) {
+    .btc-price { font-size: 2rem; }
+    .gis-score-big { font-size: 2.8rem; }
+    .gws-score-big { font-size: 3.5rem; }
+    .mc-tiles { flex-direction: column; }
+    .component-row { flex-wrap: wrap; }
+    .status-tiles-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header-bar">
+  <div class="container">
+    <div class="d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center">
+        <span class="btc-symbol">&#8383;</span>
+        <div>
+          <div class="btc-logo-text">Bitcoin Analysis Dashboard</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);">Comprehensive On-Chain &amp; Technical Analysis</div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <div>
+          <span class="live-dot"></span>
+          <span style="font-size:0.8rem;color:#22c55e;font-weight:600;">LIVE</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-secondary)" id="headerTimestamp">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container pb-4">
+
+  <!-- Row 1: Section 1 + Section 2 -->
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">1</span> Analysis Status &amp; Key Metrics</div>
+        <div id="section1-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">2</span> Halving Cycle</div>
+        <div id="section2-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Section 3 + Section 4 -->
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">3</span> Indicator Scoring (GIS)</div>
+        <div id="section3-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">4</span> Power-Law Valuation</div>
+        <div id="section4-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Section 5 + 7 + 8 -->
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">5</span> GWS — Total Value Signal</div>
+        <div id="section5-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">7</span> MC Category Distribution</div>
+        <div id="section7-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">8</span> Cycle Assessment</div>
+        <div id="section8-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 6: Monte Carlo -->
+  <div class="card-dark">
+    <div class="section-title"><span class="section-number">6</span> Monte Carlo Simulation (10,000 Paths)</div>
+    <div id="section6-content">
+      <div class="spinner-wrap" style="min-height:200px;"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+    </div>
+  </div>
+
+  <!-- Section 9: Price Estimate -->
+  <div class="card-dark">
+    <div class="section-title"><span class="section-number">9</span> Final Price Estimate</div>
+    <div id="section9-content">
+      <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+    </div>
+  </div>
+
+  <!-- Section 10: Technical Chart -->
+  <div class="card-dark">
+    <div class="section-title"><span class="section-number">10</span> Technical Analysis Chart</div>
+    <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+      <div>
+        <label class="me-2" style="font-size:0.8rem;color:var(--text-secondary);">Time Range:</label>
+        <select id="timeRangeSelect" onchange="updateChartRange()">
+          <option value="90">3M</option>
+          <option value="180">6M</option>
+          <option value="365" selected>1Y</option>
+          <option value="730">2Y</option>
+          <option value="1095">5Y (All)</option>
+        </select>
+      </div>
+      <div class="overlay-checkboxes d-flex gap-3 flex-wrap">
+        <label><input type="checkbox" id="ov2yma" onchange="updateChartOverlays()"> 2Y MA</label>
+        <label><input type="checkbox" id="ovPiCycle" onchange="updateChartOverlays()"> Pi Cycle</label>
+        <label><input type="checkbox" id="ov200wma" onchange="updateChartOverlays()"> 200W MA</label>
+        <label><input type="checkbox" id="ovGoldenRatio" onchange="updateChartOverlays()"> Golden Ratio</label>
+      </div>
+    </div>
+    <div id="section10-content">
+      <div class="spinner-wrap" style="min-height:300px;"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+    </div>
+  </div>
+
+  <!-- Row: Section 11 + 12 -->
+  <div class="row">
+    <div class="col-lg-5">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">11</span> Fear &amp; Greed Index</div>
+        <div id="section11-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card-dark">
+        <div class="section-title"><span class="section-number">12</span> Comprehensive Final Summary</div>
+        <div id="section12-content">
+          <div class="spinner-wrap"><div class="spinner-border spinner-border-orange" role="status"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="container text-center">
+    <p class="mb-1"><strong style="color:var(--btc-orange);">Bitcoin Analysis Dashboard</strong> — For informational purposes only.</p>
+    <p class="mb-0">Not financial advice. Data sourced from CoinGecko, Binance, mempool.space, Alternative.me, and FRED. Past performance does not guarantee future results.</p>
+  </div>
+</footer>
+
+<script>
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+const STATE = {
+  price: null,
+  priceChange24h: null,
+  marketCap: null,
+  volume24h: null,
+  priceHistory: [],
+  ohlcv: [],
+  fearGreedHistory: [],
+  fgCurrent: null,
+  fgYesterday: null,
+  fg7d: null,
+  fg30d: null,
+  hashrate3m: null,
+  eurusd: null,
+  fedRate: 5.33,
+  dxy: null,
+  powerLawFV: null,
+  powerLawUpper: null,
+  powerLawLower: null,
+  powerLawDevPct: null,
+  powerLawLabel: null,
+  powerLawScore: null,
+  rsiWeekly: null,
+  gis: null,
+  gisComponents: {},
+  halvingData: null,
+  cyclePhase: null,
+  cycleScore: null,
+  cycleDaysSince: null,
+  gws: null,
+  mcPaths: null,
+  mcChartData: null,
+  mcCategories3m: null,
+  mcCategories6m: null,
+  initialized: false,
+};
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+function fmtUSD(v, decimals) {
+  decimals = decimals !== undefined ? decimals : 0;
+  if (v == null || isNaN(v)) return 'N/A';
+  return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtPct(v, sign) {
+  sign = sign !== false;
+  if (v == null || isNaN(v)) return 'N/A';
+  var s = (sign && v > 0) ? '+' : '';
+  return s + v.toFixed(2) + '%';
+}
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function scoreColor(score) {
+  if (score >= 65) return '#22c55e';
+  if (score >= 40) return '#f59e0b';
+  return '#ef4444';
+}
+function gwsColor(score) {
+  if (score >= 65) return '#22c55e';
+  if (score >= 45) return '#f59e0b';
+  return '#ef4444';
+}
+function fgValColor(v) {
+  if (v == null) return '#94a3b8';
+  if (v < 25) return '#22d3ee';
+  if (v < 45) return '#22c55e';
+  if (v < 55) return '#f59e0b';
+  if (v < 75) return '#f97316';
+  return '#ef4444';
+}
+function fgClassLabel(v) {
+  if (v == null) return 'N/A';
+  if (v < 25) return 'Extreme Fear';
+  if (v < 45) return 'Fear';
+  if (v < 55) return 'Neutral';
+  if (v < 75) return 'Greed';
+  return 'Extreme Greed';
+}
+
+// Normal inverse CDF (Abramowitz & Stegun)
+function normalInv(p) {
+  if (p <= 0) return -6;
+  if (p >= 1) return 6;
+  var c = [0.3374754822726147, 0.9761690190917186, 0.1607979714918209,
+           0.0276438810333863, 0.0038405729373609, 0.0003951896511349,
+           0.0000321767881768, 0.0000002888167364, 0.0000003960315187];
+  var a = [2.50662823884, -18.61500062529, 41.39119773534, -25.44106049637];
+  var b = [-8.47351093090, 23.08336743743, -21.06224101826, 3.13082909833];
+  var q = p - 0.5;
+  if (Math.abs(q) <= 0.42) {
+    var r = q * q;
+    return q * (((a[3]*r+a[2])*r+a[1])*r+a[0]) / ((((b[3]*r+b[2])*r+b[1])*r+b[0])*r+1);
+  }
+  var r2 = p < 0.5 ? p : 1 - p;
+  r2 = Math.log(-Math.log(r2));
+  var x = c[0];
+  for (var i = 1; i < 9; i++) x += c[i] * Math.pow(r2, i);
+  return p < 0.5 ? -x : x;
+}
+
+// Simple moving average
+function calcMA(data, period) {
+  return data.map(function(_, i) {
+    if (i < period - 1) return null;
+    var sum = 0;
+    for (var j = i - period + 1; j <= i; j++) sum += data[j];
+    return sum / period;
+  });
+}
+
+// EMA calculation
+function calcEMA(data, period) {
+  var k = 2 / (period + 1);
+  var result = new Array(data.length).fill(null);
+  var startIdx = -1;
+  for (var i = 0; i < data.length; i++) {
+    if (data[i] != null) { startIdx = i; break; }
+  }
+  if (startIdx === -1) return result;
+  result[startIdx] = data[startIdx];
+  for (var j = startIdx + 1; j < data.length; j++) {
+    var prev = result[j-1] !== null ? result[j-1] : data[j];
+    result[j] = data[j] != null ? (data[j] * k + prev * (1 - k)) : prev;
+  }
+  return result;
+}
+
+// Wilder RSI (single value from price array)
+function calcRSI(prices, period) {
+  period = period || 14;
+  if (prices.length < period + 1) return null;
+  var gains = 0, losses = 0;
+  for (var i = 1; i <= period; i++) {
+    var diff = prices[i] - prices[i-1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  var avgGain = gains / period;
+  var avgLoss = losses / period;
+  for (var j = period + 1; j < prices.length; j++) {
+    var d = prices[j] - prices[j-1];
+    avgGain = (avgGain * (period-1) + (d > 0 ? d : 0)) / period;
+    avgLoss = (avgLoss * (period-1) + (d < 0 ? -d : 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - 100 / (1 + avgGain / avgLoss);
+}
+
+// Full RSI series
+function calcRSISeries(prices, period) {
+  period = period || 14;
+  var result = new Array(prices.length).fill(null);
+  if (prices.length < period + 1) return result;
+  var gains = 0, losses = 0;
+  for (var i = 1; i <= period; i++) {
+    var diff = prices[i] - prices[i-1];
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  var avgGain = gains / period, avgLoss = losses / period;
+  result[period] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
+  for (var j = period+1; j < prices.length; j++) {
+    var d = prices[j] - prices[j-1];
+    avgGain = (avgGain*(period-1) + (d>0?d:0)) / period;
+    avgLoss = (avgLoss*(period-1) + (d<0?-d:0)) / period;
+    result[j] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
+  }
+  return result;
+}
+
+// MACD
+function calcMACD(prices) {
+  var ema12 = calcEMA(prices, 12);
+  var ema26 = calcEMA(prices, 26);
+  var macd = prices.map(function(_, i) {
+    return (ema12[i] != null && ema26[i] != null) ? ema12[i] - ema26[i] : null;
+  });
+  var signal = calcEMA(macd, 9);
+  var hist = macd.map(function(v, i) {
+    return (v != null && signal[i] != null) ? v - signal[i] : null;
+  });
+  return { macd: macd, signal: signal, hist: hist };
+}
+
+// ============================================================
+// API LOADERS
+// ============================================================
+async function loadCoinGecko() {
+  try {
+    var r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true');
+    var d = await r.json();
+    STATE.price = d.bitcoin.usd;
+    STATE.priceChange24h = d.bitcoin.usd_24h_change;
+    STATE.marketCap = d.bitcoin.usd_market_cap;
+    STATE.volume24h = d.bitcoin.usd_24h_vol;
+  } catch(e) {
+    console.warn('CoinGecko simple price failed:', e.message);
+    STATE.price = 103500;
+    STATE.priceChange24h = 1.2;
+    STATE.marketCap = 2.05e12;
+    STATE.volume24h = 42e9;
+  }
+}
+
+async function loadPriceHistory() {
+  try {
+    var r = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1825&interval=daily');
+    var d = await r.json();
+    STATE.priceHistory = d.prices.map(function(p) { return { date: new Date(p[0]), price: p[1] }; });
+  } catch(e) {
+    console.warn('CoinGecko history failed:', e.message);
+    try {
+      var r2 = await fetch('https://api.blockchain.info/charts/market-price?timespan=5years&format=json&cors=true');
+      var d2 = await r2.json();
+      STATE.priceHistory = d2.values.map(function(v) { return { date: new Date(v.x * 1000), price: v.y }; });
+    } catch(e2) {
+      console.warn('Blockchain.info fallback failed:', e2.message);
+      STATE.priceHistory = [];
+    }
+  }
+}
+
+async function loadBinanceOHLCV() {
+  try {
+    var r = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1095');
+    var d = await r.json();
+    STATE.ohlcv = d.map(function(k) {
+      return { t: new Date(k[0]), o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]), v: parseFloat(k[5]) };
+    });
+    if (STATE.priceHistory.length === 0) {
+      STATE.priceHistory = STATE.ohlcv.map(function(d) { return { date: d.t, price: d.c }; });
+    }
+    if (!STATE.price && STATE.ohlcv.length > 0) {
+      STATE.price = STATE.ohlcv[STATE.ohlcv.length - 1].c;
+    }
+  } catch(e) {
+    console.warn('Binance OHLCV failed:', e.message);
+    STATE.ohlcv = [];
+  }
+}
+
+async function loadFearGreed() {
+  try {
+    var r = await fetch('https://api.alternative.me/fng/?limit=2000');
+    var d = await r.json();
+    var data = d.data.map(function(item) {
+      return { date: new Date(parseInt(item.timestamp) * 1000), value: parseInt(item.value), classification: item.value_classification };
+    }).reverse();
+    STATE.fearGreedHistory = data;
+    var n = data.length;
+    if (n > 0) STATE.fgCurrent = data[n-1].value;
+    if (n > 1) STATE.fgYesterday = data[n-2].value;
+    if (n > 7) STATE.fg7d = data[n-8].value;
+    if (n > 30) STATE.fg30d = data[n-31].value;
+  } catch(e) {
+    console.warn('Fear & Greed failed:', e.message);
+    STATE.fgCurrent = 50;
+    STATE.fearGreedHistory = [];
+  }
+}
+
+async function loadHashrate() {
+  try {
+    var r = await fetch('https://mempool.space/api/v1/mining/hashrate/3m');
+    var d = await r.json();
+    if (d.hashrates && d.hashrates.length > 1) {
+      var arr = d.hashrates;
+      var first = arr[0].avgHashrate;
+      var last = arr[arr.length-1].avgHashrate;
+      STATE.hashrate3m = ((last - first) / first) * 100;
+    } else {
+      STATE.hashrate3m = 5;
+    }
+  } catch(e) {
+    console.warn('Mempool hashrate failed:', e.message);
+    STATE.hashrate3m = 5;
+  }
+}
+
+async function loadEURUSD() {
+  try {
+    var r = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=EURUSDT');
+    var d = await r.json();
+    STATE.eurusd = parseFloat(d.lastPrice);
+    STATE.dxy = (1 / STATE.eurusd) * 57.6;
+  } catch(e) {
+    console.warn('EURUSD failed:', e.message);
+    STATE.eurusd = 1.08;
+    STATE.dxy = (1 / 1.08) * 57.6;
+  }
+}
+
+async function loadFEDFunds() {
+  try {
+    var r = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS');
+    var text = await r.text();
+    var lines = text.trim().split('\n');
+    var last = lines[lines.length-1];
+    var val = parseFloat(last.split(',')[1]);
+    if (!isNaN(val)) STATE.fedRate = val;
+  } catch(e) {
+    console.warn('FRED FEDFUNDS failed (CORS expected), using fallback 5.33%');
+    STATE.fedRate = 5.33;
+  }
+}
+
+// ============================================================
+// CALCULATIONS
+// ============================================================
+function calcPowerLaw() {
+  var genesis = new Date('2009-01-03');
+  var now = new Date();
+  var daysSince = (now - genesis) / (1000 * 60 * 60 * 24);
+  var lnP = -17.01 + 5.84 * Math.log(daysSince);
+  var fv = Math.exp(lnP);
+  STATE.powerLawFV = fv;
+  STATE.powerLawUpper = fv * Math.exp(0.45);
+  STATE.powerLawLower = fv * Math.exp(-0.60);
+  if (STATE.price) {
+    STATE.powerLawDevPct = ((STATE.price - fv) / fv) * 100;
+    var ratio = STATE.price / fv;
+    if (ratio < 0.7) STATE.powerLawLabel = 'Strongly Undervalued';
+    else if (ratio < 0.9) STATE.powerLawLabel = 'Undervalued';
+    else if (ratio < 1.2) STATE.powerLawLabel = 'Fair Value';
+    else if (ratio < 1.6) STATE.powerLawLabel = 'Overvalued';
+    else STATE.powerLawLabel = 'Strongly Overvalued';
+    var rawScore = 100 - ((ratio - 0.3) / 3.5) * 90;
+    STATE.powerLawScore = clamp(rawScore, 5, 95);
+  }
+}
+
+function calcHalvingData() {
+  var halvings = [
+    new Date('2012-11-28'), new Date('2016-07-09'),
+    new Date('2020-05-11'), new Date('2024-04-20'),
+    new Date('2028-04-18'),
+  ];
+  var now = new Date();
+  var lastHalving = halvings[0], nextHalving = halvings[halvings.length-1];
+  for (var i = 0; i < halvings.length; i++) {
+    if (halvings[i] <= now) lastHalving = halvings[i];
+    if (halvings[i] > now) { nextHalving = halvings[i]; break; }
+  }
+  var daysSince = Math.floor((now - lastHalving) / (1000*60*60*24));
+  var daysUntil = Math.ceil((nextHalving - now) / (1000*60*60*24));
+  var cycleLength = Math.floor((nextHalving - lastHalving) / (1000*60*60*24));
+  var phase;
+  if (daysSince <= 180) phase = 'Accumulation';
+  else if (daysSince <= 365) phase = 'Early Bull';
+  else if (daysSince <= 548) phase = 'Bull Market';
+  else if (daysSince <= 730) phase = 'Euphoria';
+  else if (daysSince <= 1095) phase = 'Bear Market';
+  else phase = 'Capitulation';
+  STATE.halvingData = { lastHalving: lastHalving, nextHalving: nextHalving, daysSince: daysSince, daysUntil: daysUntil, cycleLength: cycleLength, phase: phase };
+  STATE.cyclePhase = phase;
+  STATE.cycleDaysSince = daysSince;
+}
+
+function calcGIS() {
+  calcHalvingData();
+  var comps = {};
+  // 1. MVRV via Power-Law
+  if (STATE.price && STATE.powerLawFV) {
+    var ratio = STATE.price / STATE.powerLawFV;
+    comps.mvrv = { score: clamp(100 - ((ratio-0.3)/3.5)*90, 5, 95), weight: 0.20, label: 'MVRV Z-Score (approx.)', source: 'Power-Law' };
+  } else {
+    comps.mvrv = { score: 50, weight: 0.20, label: 'MVRV Z-Score (approx.)', source: 'N/A' };
+  }
+  // 2. RSI Weekly
+  if (STATE.priceHistory.length >= 100) {
+    var weekly = [];
+    for (var i = 6; i < STATE.priceHistory.length; i += 7) weekly.push(STATE.priceHistory[i].price);
+    if (weekly.length >= 15) {
+      var rsi = calcRSI(weekly, 14);
+      STATE.rsiWeekly = rsi;
+      comps.rsi = { score: clamp(100 - ((rsi-20)/70)*90, 5, 95), weight: 0.15, label: 'RSI Weekly (14)', source: 'Price History' };
+    } else {
+      comps.rsi = { score: 50, weight: 0.15, label: 'RSI Weekly (14)', source: 'Insufficient data' };
+    }
+  } else {
+    comps.rsi = { score: 50, weight: 0.15, label: 'RSI Weekly (14)', source: 'N/A' };
+  }
+  // 3. Fear & Greed
+  var fg = STATE.fgCurrent != null ? STATE.fgCurrent : 50;
+  comps.fearGreed = { score: clamp(90 - ((fg-10)/80)*80, 5, 95), weight: 0.10, label: 'Fear & Greed Index', source: 'Alternative.me' };
+  // 4. Hashrate Trend
+  var hr = STATE.hashrate3m != null ? STATE.hashrate3m : 0;
+  comps.hashrate = { score: clamp(50 + hr * 100, 5, 95), weight: 0.15, label: 'Hashrate Trend (90d)', source: 'mempool.space' };
+  // 5. ETF Net Flows (CORS-blocked)
+  comps.etf = { score: 50, weight: 0.15, label: 'ETF Net Flows', source: 'n/v (CORS)', neutral: true };
+  // 6. Macro / Fed
+  var rate = STATE.fedRate;
+  comps.macro = { score: clamp(90 - ((rate-1)/6)*60, 5, 95), weight: 0.15, label: 'Macro / Fed Rate', source: 'FRED (fallback: ' + rate.toFixed(2) + '%)' };
+  // 7. DXY
+  var dxy = STATE.dxy != null ? STATE.dxy : 104;
+  comps.dxy = { score: clamp(90 - ((dxy-88)/25)*80, 5, 95), weight: 0.10, label: 'DXY Index', source: 'Binance EUR/USD' };
+  STATE.gisComponents = comps;
+  var total = 0;
+  var keys = Object.keys(comps);
+  for (var k = 0; k < keys.length; k++) total += comps[keys[k]].score * comps[keys[k]].weight;
+  STATE.gis = Math.round(total);
+}
+
+function calcCycleScore() {
+  var scores = { 'Accumulation': 75, 'Early Bull': 80, 'Bull Market': 70, 'Euphoria': 50, 'Bear Market': 30, 'Capitulation': 55 };
+  STATE.cycleScore = scores[STATE.cyclePhase] || 50;
+}
+
+function calcGWS() {
+  STATE.gws = Math.round((STATE.gis || 50) * 0.30 + (STATE.powerLawScore || 50) * 0.50 + (STATE.cycleScore || 50) * 0.20);
+}
+
+function runMonteCarlo() {
+  if (STATE.priceHistory.length < 62) { STATE.mcPaths = null; return; }
+  var prices = STATE.priceHistory.map(function(d) { return d.price; });
+  var n = prices.length;
+  var currentPrice = STATE.price || prices[n-1];
+  // 60d historical vol
+  var logRets = [];
+  for (var i = n-60; i < n; i++) {
+    if (prices[i-1] > 0) logRets.push(Math.log(prices[i] / prices[i-1]));
+  }
+  var mean = logRets.reduce(function(a,b){return a+b;},0) / logRets.length;
+  var variance = logRets.reduce(function(s,r){return s+(r-mean)*(r-mean);},0) / (logRets.length-1);
+  var volDaily = Math.sqrt(variance);
+  var volAnnual = volDaily * Math.sqrt(365);
+  // 1-year drift
+  var p1y = prices[Math.max(0, n-366)];
+  var drift = Math.log(currentPrice / p1y) / 365;
+  var horizon = 182;
+  var numPaths = 10000;
+  var finals3m = [], finals6m = [];
+  for (var path = 0; path < numPaths; path++) {
+    var S = currentPrice;
+    var v = volDaily;
+    for (var t = 1; t <= horizon; t++) {
+      v = 0.94*v + 0.06*volDaily;
+      var driftT = drift * Math.max(0, 1 - t/horizon);
+      var u1 = Math.random(), u2 = Math.random();
+      var z = Math.sqrt(-2*Math.log(Math.max(1e-10,u1))) * Math.cos(2*Math.PI*u2);
+      S *= Math.exp((driftT - 0.5*v*v) + v*z);
+      if (t === 91) finals3m.push(S);
+    }
+    finals6m.push(S);
+  }
+  finals3m.sort(function(a,b){return a-b;});
+  finals6m.sort(function(a,b){return a-b;});
+  function pct(arr, p) { return arr[Math.floor(p * arr.length / 100)]; }
+  STATE.mcPaths = {
+    p10_3m: pct(finals3m,10), p25_3m: pct(finals3m,25), p50_3m: pct(finals3m,50),
+    p75_3m: pct(finals3m,75), p90_3m: pct(finals3m,90),
+    p10_6m: pct(finals6m,10), p25_6m: pct(finals6m,25), p50_6m: pct(finals6m,50),
+    p75_6m: pct(finals6m,75), p90_6m: pct(finals6m,90),
+    downside3m: finals3m.filter(function(v){return v<currentPrice;}).length/finals3m.length*100,
+    downside6m: finals6m.filter(function(v){return v<currentPrice;}).length/finals6m.length*100,
+    volAnnual: volAnnual, drift: drift,
+  };
+  // Category distributions
+  function calcCats(arr, cp) {
+    var total = arr.length;
+    return {
+      A: arr.filter(function(v){return v<cp*0.60;}).length/total*100,
+      B: arr.filter(function(v){return v>=cp*0.60&&v<cp*0.80;}).length/total*100,
+      C: arr.filter(function(v){return v>=cp*0.80&&v<cp*1.20;}).length/total*100,
+      D: arr.filter(function(v){return v>=cp*1.20&&v<cp*2.00;}).length/total*100,
+      E: arr.filter(function(v){return v>=cp*2.00;}).length/total*100,
+    };
+  }
+  STATE.mcCategories3m = calcCats(finals3m, currentPrice);
+  STATE.mcCategories6m = calcCats(finals6m, currentPrice);
+  // Analytical percentile paths
+  var days = [];
+  for (var d2 = 0; d2 <= horizon; d2++) days.push(d2);
+  var p10path=[], p25path=[], p50path=[], p75path=[], p90path=[];
+  for (var di = 0; di < days.length; di++) {
+    var t2 = days[di];
+    if (t2 === 0) {
+      p10path.push(currentPrice); p25path.push(currentPrice); p50path.push(currentPrice);
+      p75path.push(currentPrice); p90path.push(currentPrice);
+    } else {
+      var mu = drift * Math.max(0, 1-t2/horizon) - 0.5*volDaily*volDaily;
+      var sig = volDaily * Math.sqrt(t2);
+      p10path.push(currentPrice * Math.exp(mu*t2 + normalInv(0.10)*sig));
+      p25path.push(currentPrice * Math.exp(mu*t2 + normalInv(0.25)*sig));
+      p50path.push(currentPrice * Math.exp(mu*t2 + normalInv(0.50)*sig));
+      p75path.push(currentPrice * Math.exp(mu*t2 + normalInv(0.75)*sig));
+      p90path.push(currentPrice * Math.exp(mu*t2 + normalInv(0.90)*sig));
+    }
+  }
+  STATE.mcChartData = { days: days, p10path: p10path, p25path: p25path, p50path: p50path, p75path: p75path, p90path: p90path };
+}
+
+// ============================================================
+// RENDER FUNCTIONS
+// ============================================================
+function renderSection1() {
+  var p = STATE.price, ch = STATE.priceChange24h, mc = STATE.marketCap, vol = STATE.volume24h;
+  var fg = STATE.fgCurrent, dxy = STATE.dxy;
+  var now = new Date();
+  var cc = (ch >= 0) ? 'price-change-pos' : 'price-change-neg';
+  var sign = (ch >= 0) ? '+' : '';
+  document.getElementById('section1-content').innerHTML =
+    '<div class="d-flex align-items-baseline gap-3 mb-3 flex-wrap">' +
+      '<div class="btc-price">' + fmtUSD(p) + '</div>' +
+      '<div class="' + cc + '" style="font-size:1.4rem;font-weight:700;">' + sign + (ch != null ? ch.toFixed(2) : '0') + '%</div>' +
+      '<div style="font-size:0.8rem;color:var(--text-muted);">24h change</div>' +
+    '</div>' +
+    '<div class="row g-2">' +
+      '<div class="col-6 col-md-3"><div class="metric-tile"><div class="label">Market Cap</div>' +
+        '<div class="value" style="font-size:1rem;">' + (mc ? '$' + (mc/1e12).toFixed(3) + 'T' : 'N/A') + '</div></div></div>' +
+      '<div class="col-6 col-md-3"><div class="metric-tile"><div class="label">24h Volume</div>' +
+        '<div class="value" style="font-size:1rem;">' + (vol ? '$' + (vol/1e9).toFixed(2) + 'B' : 'N/A') + '</div></div></div>' +
+      '<div class="col-6 col-md-3"><div class="metric-tile"><div class="label">DXY (Approx.)</div>' +
+        '<div class="value">' + (dxy ? dxy.toFixed(2) : 'N/A') + '</div></div></div>' +
+      '<div class="col-6 col-md-3"><div class="metric-tile"><div class="label">Fear &amp; Greed</div>' +
+        '<div class="value" style="color:' + fgValColor(fg) + ';">' + (fg != null ? fg : 'N/A') + ' <span style="font-size:0.7rem;">' + fgClassLabel(fg) + '</span></div></div></div>' +
+    '</div>' +
+    '<div class="mt-3 d-flex align-items-center gap-2">' +
+      '<span class="live-dot"></span>' +
+      '<span style="font-size:0.78rem;color:var(--text-muted);">Last updated: ' + now.toLocaleString() + '</span>' +
+    '</div>';
+  document.getElementById('headerTimestamp').textContent = now.toLocaleTimeString();
+}
+
+function renderSection2() {
+  var hd = STATE.halvingData;
+  if (!hd) { document.getElementById('section2-content').innerHTML = '<p class="text-muted small">Data unavailable</p>'; return; }
+  var daysSince = hd.daysSince, daysUntil = hd.daysUntil, phase = hd.phase, cycleLength = hd.cycleLength;
+  var monthsSince = (daysSince / 30.44).toFixed(1);
+  var cyclePct = Math.min((daysSince / cycleLength) * 100, 100);
+  var phaseColors = { 'Accumulation':'#06b6d4','Early Bull':'#22c55e','Bull Market':'#84cc16','Euphoria':'#f59e0b','Bear Market':'#ef4444','Capitulation':'#8b5cf6' };
+  var pc = phaseColors[phase] || '#94a3b8';
+  // Phase segments
+  var segs = [
+    {days:180,color:'#06b6d4',label:'Accum'},
+    {days:185,color:'#22c55e',label:'E.Bull'},
+    {days:183,color:'#84cc16',label:'Bull'},
+    {days:182,color:'#f59e0b',label:'Euphoria'},
+    {days:365,color:'#ef4444',label:'Bear'},
+  ];
+  var segHtml = '', left = 0, rem = cycleLength;
+  for (var si = 0; si < segs.length; si++) {
+    var w = Math.min(segs[si].days, rem) / cycleLength * 100;
+    segHtml += '<div class="phase-segment" style="left:' + left.toFixed(2) + '%;width:' + w.toFixed(2) + '%;background:' + segs[si].color + ';">' + (w > 8 ? segs[si].label : '') + '</div>';
+    left += w; rem -= segs[si].days;
+    if (rem <= 0) break;
+  }
+  if (rem > 0) {
+    var w2 = rem / cycleLength * 100;
+    segHtml += '<div class="phase-segment" style="left:' + left.toFixed(2) + '%;width:' + w2.toFixed(2) + '%;background:#8b5cf6;">' + (w2 > 8 ? 'Cap' : '') + '</div>';
+  }
+  document.getElementById('section2-content').innerHTML =
+    '<div class="mb-3">' +
+      '<div class="d-flex justify-content-between mb-2">' +
+        '<div><div style="font-size:0.72rem;color:var(--text-secondary);">Last Halving</div>' +
+          '<div style="font-weight:700;">' + hd.lastHalving.toISOString().split('T')[0] + '</div></div>' +
+        '<div class="text-end"><div style="font-size:0.72rem;color:var(--text-secondary);">Next Halving (est.)</div>' +
+          '<div style="font-weight:700;">' + hd.nextHalving.toISOString().split('T')[0] + '</div></div>' +
+      '</div>' +
+      '<div style="position:relative;margin:24px 0 12px;">' +
+        '<div class="halving-phase-bar">' + segHtml + '</div>' +
+        '<div class="halving-marker" style="left:' + cyclePct.toFixed(2) + '%;"></div>' +
+      '</div>' +
+      '<div style="font-size:0.72rem;color:var(--text-secondary);text-align:center;">Position: ' + cyclePct.toFixed(1) + '% of cycle</div>' +
+    '</div>' +
+    '<div class="row g-2">' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Days Since</div><div class="value">' + daysSince + '</div></div></div>' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Days Until</div><div class="value">' + (daysUntil > 0 ? daysUntil : 'Past') + '</div></div></div>' +
+      '<div class="col-12"><div class="metric-tile"><div class="label">Cycle Phase</div>' +
+        '<div class="value" style="color:' + pc + ';">' + phase + '</div></div></div>' +
+    '</div>' +
+    '<div class="mt-2" style="font-size:0.78rem;color:var(--text-secondary);">&#8776; ' + monthsSince + ' months since last halving</div>';
+}
+
+function renderSection3() {
+  var comps = STATE.gisComponents, gis = STATE.gis;
+  if (!gis) { document.getElementById('section3-content').innerHTML = '<p class="text-muted small">Data unavailable</p>'; return; }
+  var order = ['mvrv','rsi','fearGreed','hashrate','etf','macro','dxy'];
+  var indicHtml = '';
+  for (var oi = 0; oi < order.length; oi++) {
+    var c = comps[order[oi]]; if (!c) continue;
+    var col = scoreColor(c.score);
+    indicHtml +=
+      '<div class="indicator-bar-wrap">' +
+        '<div class="indicator-label">' +
+          '<span><strong>' + c.label + '</strong> <span style="font-size:0.7rem;opacity:0.7;">(' + (c.weight*100).toFixed(0) + '%)</span>' + (c.neutral ? ' <span style="font-size:0.65rem;color:#f59e0b;">[n/v]</span>' : '') + '</span>' +
+          '<span style="color:' + col + ';font-weight:700;">' + c.score.toFixed(0) + '/100</span>' +
+        '</div>' +
+        '<div style="position:relative;height:10px;background:var(--border-color);border-radius:5px;overflow:hidden;">' +
+          '<div style="width:' + c.score + '%;height:100%;background:linear-gradient(to right,#ef4444,#f59e0b,#22c55e);"></div>' +
+        '</div>' +
+        '<div style="font-size:0.67rem;color:var(--text-muted);margin-top:2px;">Source: ' + c.source + '</div>' +
+      '</div>';
+  }
+  var vt = gis >= 65 ? 'BULLISH' : gis >= 45 ? 'NEUTRAL' : 'BEARISH';
+  var vc = scoreColor(gis);
+  document.getElementById('section3-content').innerHTML =
+    '<div class="d-flex align-items-center gap-4 mb-4">' +
+      '<div><div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;font-weight:600;">GIS Score</div>' +
+        '<div class="gis-score-big">' + gis + '</div></div>' +
+      '<div><span class="badge-verdict" style="background:' + vc + '22;color:' + vc + ';border:1.5px solid ' + vc + ';">' + vt + '</span></div>' +
+    '</div>' + indicHtml;
+}
+
+function renderSection4() {
+  var fv = STATE.powerLawFV, upper = STATE.powerLawUpper, lower = STATE.powerLawLower;
+  var dev = STATE.powerLawDevPct, label = STATE.powerLawLabel, price = STATE.price;
+  if (!fv) { document.getElementById('section4-content').innerHTML = '<p class="text-muted small">Data unavailable</p>'; return; }
+  var lc = {'Strongly Undervalued':'#22c55e','Undervalued':'#84cc16','Fair Value':'#f59e0b','Overvalued':'#f97316','Strongly Overvalued':'#ef4444'}[label] || '#94a3b8';
+  var posPct = price ? clamp(((price-lower)/(upper-lower))*100, 0, 100) : 50;
+  var devColor = dev >= 0 ? '#f97316' : '#22c55e';
+  document.getElementById('section4-content').innerHTML =
+    '<div class="mb-3 text-center">' +
+      '<div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;">Valuation Status</div>' +
+      '<div style="font-size:1.5rem;font-weight:800;color:' + lc + ';margin:4px 0;">' + label + '</div>' +
+    '</div>' +
+    '<div class="row g-2 mb-3">' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Fair Value</div><div class="value" style="font-size:1rem;">' + fmtUSD(fv) + '</div></div></div>' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Deviation</div><div class="value" style="font-size:1rem;color:' + devColor + ';">' + fmtPct(dev) + '</div></div></div>' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Upper Band</div><div class="value" style="font-size:0.95rem;color:#ef4444;">' + fmtUSD(upper) + '</div></div></div>' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Lower Band</div><div class="value" style="font-size:0.95rem;color:#22c55e;">' + fmtUSD(lower) + '</div></div></div>' +
+    '</div>' +
+    '<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:6px;">Position in fair-value band</div>' +
+    '<div style="position:relative;height:16px;border-radius:8px;background:linear-gradient(to right,#22c55e,#f59e0b,#ef4444);">' +
+      '<div style="position:absolute;top:-3px;left:' + posPct.toFixed(1) + '%;width:6px;height:22px;background:#fff;border-radius:3px;transform:translateX(-50%);box-shadow:0 0 6px rgba(0,0,0,0.5);"></div>' +
+    '</div>' +
+    '<div style="font-size:0.67rem;color:var(--text-muted);margin-top:6px;">Model: ln(P) = -17.01 + 5.84 &#215; ln(days since 2009-01-03)</div>';
+}
+
+function renderSection5and8() {
+  var gws = STATE.gws, gis = STATE.gis, pl = STATE.powerLawScore, cs = STATE.cycleScore;
+  var gwsCol = gwsColor(gws), gwsLabel = gws >= 65 ? 'BULLISH' : gws >= 45 ? 'NEUTRAL' : 'BEARISH';
+  document.getElementById('section5-content').innerHTML =
+    '<div class="text-center mb-3">' +
+      '<div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;margin-bottom:4px;">Global Weighted Score</div>' +
+      '<div class="gws-score-big" style="color:' + gwsCol + ';">' + gws + '</div>' +
+      '<div style="margin-top:8px;"><span class="badge-verdict" style="background:' + gwsCol + '22;color:' + gwsCol + ';border:1.5px solid ' + gwsCol + ';">' + gwsLabel + '</span></div>' +
+    '</div>' +
+    '<div class="component-row">' +
+      '<div class="comp-item"><div class="comp-label">GIS (30%)</div><div class="comp-val">' + (gis||'N/A') + '</div><div class="comp-sub">Indicator Score</div></div>' +
+      '<div class="comp-item"><div class="comp-label">Power-Law (50%)</div><div class="comp-val">' + (pl?pl.toFixed(0):'N/A') + '</div><div class="comp-sub">Valuation Score</div></div>' +
+      '<div class="comp-item"><div class="comp-label">Cycle (20%)</div><div class="comp-val">' + (cs||'N/A') + '</div><div class="comp-sub">' + (STATE.cyclePhase||'') + '</div></div>' +
+    '</div>';
+
+  // Section 8
+  var hd = STATE.halvingData;
+  if (!hd) { document.getElementById('section8-content').innerHTML = '<p class="text-muted small">Data unavailable</p>'; return; }
+  var ds = hd.daysSince, phase = hd.phase;
+  var entrySignal;
+  if (ds < 90) entrySignal = 'Strong Accumulation Signal';
+  else if (ds < 270) entrySignal = 'DCA Accumulation Window';
+  else if (ds < 450) entrySignal = 'Moderate Entry / Hold';
+  else if (ds < 600) entrySignal = 'Monitor for Euphoria Peak';
+  else if (ds < 900) entrySignal = 'Reduce Exposure';
+  else entrySignal = 'Long-Term Accumulation (Cycle Low)';
+  var catalystStatus, catalystColor;
+  if (ds < 548) { catalystStatus = 'Active — Halving Tailwind'; catalystColor = '#22c55e'; }
+  else if (ds < 730) { catalystStatus = 'Fading — Late Cycle'; catalystColor = '#f59e0b'; }
+  else { catalystStatus = 'Expired — Bear Phase'; catalystColor = '#ef4444'; }
+  var phaseColors = {'Accumulation':'#06b6d4','Early Bull':'#22c55e','Bull Market':'#84cc16','Euphoria':'#f59e0b','Bear Market':'#ef4444','Capitulation':'#8b5cf6'};
+  var pc = phaseColors[phase]||'#94a3b8';
+  var cyclePct = Math.min((ds/hd.cycleLength)*100, 100);
+  document.getElementById('section8-content').innerHTML =
+    '<div class="mb-3">' +
+      '<div style="font-size:0.75rem;color:var(--text-secondary);">Current Phase</div>' +
+      '<div style="font-size:1.4rem;font-weight:800;color:' + pc + ';">' + phase + '</div>' +
+    '</div>' +
+    '<div class="row g-2 mb-2">' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Cycle Position</div><div class="value">' + cyclePct.toFixed(1) + '%</div></div></div>' +
+      '<div class="col-6"><div class="metric-tile"><div class="label">Cycle Score</div><div class="value" style="color:' + scoreColor(cs) + ';">' + cs + '/100</div></div></div>' +
+    '</div>' +
+    '<div style="margin-bottom:10px;"><div style="font-size:0.72rem;color:var(--text-secondary);">Entry Signal</div>' +
+      '<div style="font-weight:600;color:var(--btc-orange);font-size:0.9rem;">' + entrySignal + '</div></div>' +
+    '<div><div style="font-size:0.72rem;color:var(--text-secondary);">Halving Catalyst</div>' +
+      '<div style="font-weight:600;color:' + catalystColor + ';font-size:0.85rem;">' + catalystStatus + '</div></div>';
+}
+
+function renderSection6and7and9() {
+  var mc = STATE.mcPaths, cp = STATE.price;
+  if (!mc || !cp) {
+    document.getElementById('section6-content').innerHTML = '<p class="text-muted small">Monte Carlo unavailable — insufficient price history</p>';
+    document.getElementById('section7-content').innerHTML = '<p class="text-muted small">Data unavailable</p>';
+    document.getElementById('section9-content').innerHTML = '<p class="text-muted small">Data unavailable</p>';
+    return;
+  }
+  // Section 6 container
+  document.getElementById('section6-content').innerHTML =
+    '<div id="section6-plot"></div>' +
+    '<div class="mc-tiles">' +
+      '<div class="mc-tile"><div class="mc-label">3-Month Forecast</div><div class="mc-p50">' + fmtUSD(mc.p50_3m) + '</div>' +
+        '<div class="mc-sub">P10: ' + fmtUSD(mc.p10_3m) + ' &nbsp;|&nbsp; P90: ' + fmtUSD(mc.p90_3m) + '</div>' +
+        '<div class="mc-sub" style="margin-top:4px;">Downside prob: ' + mc.downside3m.toFixed(1) + '%</div></div>' +
+      '<div class="mc-tile"><div class="mc-label">6-Month Forecast</div><div class="mc-p50">' + fmtUSD(mc.p50_6m) + '</div>' +
+        '<div class="mc-sub">P10: ' + fmtUSD(mc.p10_6m) + ' &nbsp;|&nbsp; P90: ' + fmtUSD(mc.p90_6m) + '</div>' +
+        '<div class="mc-sub" style="margin-top:4px;">Downside prob: ' + mc.downside6m.toFixed(1) + '%</div></div>' +
+    '</div>' +
+    '<div class="mt-2" style="font-size:0.72rem;color:var(--text-muted);">Vol (ann.): ' + (mc.volAnnual*100).toFixed(1) + '% | Drift (1Y): ' + (mc.drift*365*100).toFixed(1) + '%/yr | Paths: 10,000 GBM with vol mean-reversion &amp; drift decay</div>';
+  // Draw MC chart
+  var mcd = STATE.mcChartData;
+  var baseDate = new Date();
+  var dates = mcd.days.map(function(d) { var dt = new Date(baseDate); dt.setDate(dt.getDate()+d); return dt.toISOString().split('T')[0]; });
+  var traceP10 = { x:dates, y:mcd.p10path, name:'P10', mode:'lines', line:{color:'rgba(34,197,94,0.2)',width:0}, showlegend:false, hoverinfo:'skip' };
+  var traceP25 = { x:dates, y:mcd.p25path, name:'P10-P90 Band', fill:'tonexty', fillcolor:'rgba(34,197,94,0.1)', line:{color:'rgba(34,197,94,0.25)',width:0}, mode:'lines', showlegend:true, hoverinfo:'skip' };
+  var traceP75 = { x:dates, y:mcd.p75path, name:'P25-P75 Band', fill:'tonexty', fillcolor:'rgba(247,147,26,0.2)', line:{color:'rgba(247,147,26,0.3)',width:0}, mode:'lines', showlegend:true, hoverinfo:'skip' };
+  var traceP90 = { x:dates, y:mcd.p90path, name:'P90', fill:'tonexty', fillcolor:'rgba(34,197,94,0.08)', line:{color:'rgba(34,197,94,0.2)',width:0}, mode:'lines', showlegend:false, hoverinfo:'skip' };
+  var traceMedian = { x:dates, y:mcd.p50path, name:'Median (P50)', mode:'lines', line:{color:'#f7931a',width:2.5} };
+  var d3m = dates[91]||dates[dates.length-1], d6m = dates[182]||dates[dates.length-1];
+  var layout6 = {
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:360,
+    margin:{t:20,b:50,l:80,r:20},
+    xaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8'}},
+    yaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8'},tickprefix:'$',tickformat:',.0f'},
+    legend:{bgcolor:'rgba(0,0,0,0)',font:{color:'#94a3b8'},x:0,y:1},
+    shapes:[
+      {type:'line',x0:d3m,x1:d3m,y0:0,y1:1,yref:'paper',line:{color:'#f59e0b',width:1.5,dash:'dash'}},
+      {type:'line',x0:d6m,x1:d6m,y0:0,y1:1,yref:'paper',line:{color:'#8b5cf6',width:1.5,dash:'dash'}},
+    ],
+    annotations:[
+      {x:d3m,y:1,yref:'paper',text:'3M',showarrow:false,font:{color:'#f59e0b',size:11},yanchor:'bottom',xanchor:'left'},
+      {x:d6m,y:1,yref:'paper',text:'6M',showarrow:false,font:{color:'#8b5cf6',size:11},yanchor:'bottom',xanchor:'left'},
+    ],
+  };
+  Plotly.newPlot('section6-plot',[traceP10,traceP25,traceP75,traceP90,traceMedian],layout6,{responsive:true,displayModeBar:false});
+
+  // Section 7: Categories
+  var cats3m = STATE.mcCategories3m, cats6m = STATE.mcCategories6m;
+  var catDefs = [
+    {key:'E',label:'Euphoria',range:'> +100%',color:'#8b5cf6',bg:'rgba(139,92,246,0.12)'},
+    {key:'D',label:'Bull',range:'+20% to +100%',color:'#22c55e',bg:'rgba(34,197,94,0.12)'},
+    {key:'C',label:'Neutral',range:'-20% to +20%',color:'#f59e0b',bg:'rgba(245,158,11,0.12)'},
+    {key:'B',label:'Bear',range:'-40% to -20%',color:'#f97316',bg:'rgba(249,115,22,0.12)'},
+    {key:'A',label:'Crash',range:'< -40%',color:'#ef4444',bg:'rgba(239,68,68,0.12)'},
+  ];
+  var catHtml = '<div style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:8px;text-align:center;">3M &#8594; 6M probabilities</div>';
+  for (var ci = 0; ci < catDefs.length; ci++) {
+    var cat = catDefs[ci];
+    var p3 = (cats3m[cat.key]||0).toFixed(1), p6 = (cats6m[cat.key]||0).toFixed(1);
+    catHtml +=
+      '<div class="cat-tile" style="background:' + cat.bg + ';border-color:' + cat.color + '44;">' +
+        '<div class="cat-label" style="color:' + cat.color + ';">' + cat.key + '. ' + cat.label + '</div>' +
+        '<div style="display:flex;justify-content:center;gap:16px;align-items:baseline;">' +
+          '<div><div style="font-size:1.35rem;font-weight:800;color:' + cat.color + ';">' + p3 + '%</div><div style="font-size:0.65rem;color:var(--text-muted);">3M</div></div>' +
+          '<div style="color:var(--text-muted);">&#8594;</div>' +
+          '<div><div style="font-size:1.35rem;font-weight:800;color:' + cat.color + ';opacity:0.8;">' + p6 + '%</div><div style="font-size:0.65rem;color:var(--text-muted);">6M</div></div>' +
+        '</div>' +
+        '<div style="font-size:0.7rem;color:var(--text-secondary);">' + cat.range + '</div>' +
+      '</div>';
+  }
+  document.getElementById('section7-content').innerHTML = catHtml;
+
+  // Section 9: Final Estimate
+  var gws = STATE.gws, outlookLabel = gws >= 65 ? 'BULLISH' : gws >= 45 ? 'NEUTRAL' : 'BEARISH';
+  var oc = gwsColor(gws);
+  document.getElementById('section9-content').innerHTML =
+    '<div class="text-center mb-3"><span class="badge-verdict" style="background:' + oc + '22;color:' + oc + ';border:1.5px solid ' + oc + ';font-size:1rem;">OUTLOOK: ' + outlookLabel + '</span></div>' +
+    '<div class="row g-3">' +
+      '<div class="col-md-6"><div class="price-range-tile">' +
+        '<div class="timeframe">3-Month Range (P25 &#8211; P75)</div>' +
+        '<div class="main-range">' + fmtUSD(mc.p25_3m) + ' &#8211; ' + fmtUSD(mc.p75_3m) + '</div>' +
+        '<div class="sub-values">Pessimistic P10: ' + fmtUSD(mc.p10_3m) + '<br>Optimistic P90: ' + fmtUSD(mc.p90_3m) + '</div>' +
+      '</div></div>' +
+      '<div class="col-md-6"><div class="price-range-tile">' +
+        '<div class="timeframe">6-Month Range (P25 &#8211; P75)</div>' +
+        '<div class="main-range">' + fmtUSD(mc.p25_6m) + ' &#8211; ' + fmtUSD(mc.p75_6m) + '</div>' +
+        '<div class="sub-values">Pessimistic P10: ' + fmtUSD(mc.p10_6m) + '<br>Optimistic P90: ' + fmtUSD(mc.p90_6m) + '</div>' +
+      '</div></div>' +
+    '</div>' +
+    '<div class="text-center mt-3" style="font-size:0.72rem;color:var(--text-muted);">Based on 10,000 Monte Carlo GBM paths with vol mean-reversion &amp; drift decay. Not financial advice.</div>';
+}
+
+// ============================================================
+// SECTION 10: TECHNICAL CHART
+// ============================================================
+var section10Layout = null;
+var section10CurrentDays = 365;
+
+async function renderSection10() {
+  var data = STATE.ohlcv;
+  if (!data || data.length < 50) {
+    document.getElementById('section10-content').innerHTML = '<p class="text-muted small">OHLCV data unavailable from Binance</p>';
+    return;
+  }
+  document.getElementById('section10-content').innerHTML = '<div id="section10-plot"></div>';
+  var dates = data.map(function(d){return d.t.toISOString().split('T')[0];});
+  var opens = data.map(function(d){return d.o;});
+  var highs = data.map(function(d){return d.h;});
+  var lows = data.map(function(d){return d.l;});
+  var closes = data.map(function(d){return d.c;});
+  var vols = data.map(function(d){return d.v;});
+  // MAs & EMAs
+  var ma20 = calcMA(closes,20), ma50 = calcMA(closes,50), ma200 = calcMA(closes,200);
+  var ema20 = calcEMA(closes,20);
+  // Overlay MAs
+  var ma730 = calcMA(closes, Math.min(730,data.length));
+  var ma730x5 = ma730.map(function(v){return v?v*5:null;});
+  var ma111 = calcMA(closes, Math.min(111,data.length));
+  var ma350 = calcMA(closes, Math.min(350,data.length));
+  var ma350x2 = ma350.map(function(v){return v?v*2:null;});
+  var ma1400 = calcMA(closes, Math.min(1400,data.length));
+  var ma350x1618 = ma350.map(function(v){return v?v*1.618:null;});
+  // Volume colors
+  var volColors = data.map(function(d){return d.c>=d.o?'rgba(34,197,94,0.6)':'rgba(239,68,68,0.6)';});
+  // RSI series
+  var rsiSeries = calcRSISeries(closes, 14);
+  // MACD
+  var macdData = calcMACD(closes);
+  var histColors = macdData.hist.map(function(v){return v==null?'rgba(0,0,0,0)':v>=0?'rgba(34,197,94,0.7)':'rgba(239,68,68,0.7)';});
+  // Golden/Death cross annotations
+  var crossAnno = [];
+  for (var ci = 1; ci < ma50.length; ci++) {
+    if (!ma50[ci]||!ma200[ci]||!ma50[ci-1]||!ma200[ci-1]) continue;
+    if (ma50[ci-1]<ma200[ci-1] && ma50[ci]>=ma200[ci]) {
+      crossAnno.push({x:dates[ci],y:highs[ci],text:'Golden X',showarrow:true,arrowhead:2,arrowcolor:'#f7931a',font:{color:'#f7931a',size:9},ax:0,ay:-30,xref:'x',yref:'y'});
+    } else if (ma50[ci-1]>ma200[ci-1] && ma50[ci]<=ma200[ci]) {
+      crossAnno.push({x:dates[ci],y:lows[ci],text:'Death X',showarrow:true,arrowhead:2,arrowcolor:'#ef4444',font:{color:'#ef4444',size:9},ax:0,ay:30,xref:'x',yref:'y'});
+    }
+  }
+  var recentCross = crossAnno.slice(-5);
+  var traces = [
+    // Candlestick
+    {type:'candlestick',name:'BTC/USDT',x:dates,open:opens,high:highs,low:lows,close:closes,
+     increasing:{line:{color:'#22c55e',width:1},fillcolor:'rgba(34,197,94,0.7)'},
+     decreasing:{line:{color:'#ef4444',width:1},fillcolor:'rgba(239,68,68,0.7)'},
+     xaxis:'x',yaxis:'y',hoverinfo:'x+y'},
+    // MAs
+    {type:'scatter',name:'MA20',x:dates,y:ma20,mode:'lines',line:{color:'#3b82f6',width:1},xaxis:'x',yaxis:'y'},
+    {type:'scatter',name:'MA50',x:dates,y:ma50,mode:'lines',line:{color:'#a855f7',width:1.5},xaxis:'x',yaxis:'y'},
+    {type:'scatter',name:'MA200',x:dates,y:ma200,mode:'lines',line:{color:'#eab308',width:2.5},xaxis:'x',yaxis:'y'},
+    {type:'scatter',name:'EMA20',x:dates,y:ema20,mode:'lines',line:{color:'#22d3ee',width:1,dash:'dash'},xaxis:'x',yaxis:'y'},
+    // Overlay (toggleable) — indices 5-10
+    {type:'scatter',name:'2Y MA',x:dates,y:ma730,mode:'lines',line:{color:'#f472b6',width:1.5,dash:'dot'},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    {type:'scatter',name:'2Y MA x5',x:dates,y:ma730x5,mode:'lines',line:{color:'#be185d',width:1.5},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    {type:'scatter',name:'Pi 111d',x:dates,y:ma111,mode:'lines',line:{color:'#22d3ee',width:1.5},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    {type:'scatter',name:'Pi 350d x2',x:dates,y:ma350x2,mode:'lines',line:{color:'#0891b2',width:1.5},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    {type:'scatter',name:'200W MA',x:dates,y:ma1400,mode:'lines',line:{color:'#86efac',width:2},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    {type:'scatter',name:'Golden Ratio',x:dates,y:ma350x1618,mode:'lines',line:{color:'#fbbf24',width:1.5,dash:'dashdot'},xaxis:'x',yaxis:'y',visible:'legendonly'},
+    // Volume
+    {type:'bar',name:'Volume',x:dates,y:vols,marker:{color:volColors},xaxis:'x',yaxis:'y2',showlegend:false},
+    // RSI
+    {type:'scatter',name:'RSI(14)',x:dates,y:rsiSeries,mode:'lines',line:{color:'#f7931a',width:1.5},xaxis:'x',yaxis:'y3'},
+    // MACD
+    {type:'scatter',name:'MACD',x:dates,y:macdData.macd,mode:'lines',line:{color:'#3b82f6',width:1.5},xaxis:'x',yaxis:'y4'},
+    {type:'scatter',name:'Signal',x:dates,y:macdData.signal,mode:'lines',line:{color:'#f97316',width:1.5},xaxis:'x',yaxis:'y4'},
+    {type:'bar',name:'Hist',x:dates,y:macdData.hist,marker:{color:histColors},xaxis:'x',yaxis:'y4',showlegend:false},
+  ];
+  var rangeEnd = dates[dates.length-1];
+  var startDate = new Date(); startDate.setDate(startDate.getDate()-section10CurrentDays);
+  var startStr = startDate.toISOString().split('T')[0];
+  var layout = {
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:750,
+    margin:{t:10,b:30,l:80,r:10},
+    xaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8'},rangeslider:{visible:false},range:[startStr,rangeEnd]},
+    yaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8'},tickprefix:'$',tickformat:',.0f',domain:[0.42,1]},
+    yaxis2:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8',size:9},domain:[0.28,0.41],showgrid:false},
+    yaxis3:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8',size:9},domain:[0.15,0.27],range:[0,100]},
+    yaxis4:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8',size:9},domain:[0,0.14]},
+    legend:{bgcolor:'rgba(17,24,39,0.9)',font:{color:'#94a3b8',size:11},x:0,y:1,xanchor:'left',yanchor:'top',bordercolor:'#2d3a50',borderwidth:1},
+    shapes:[
+      {type:'line',x0:dates[0],x1:dates[dates.length-1],y0:70,y1:70,xref:'x',yref:'y3',line:{color:'rgba(239,68,68,0.55)',width:1,dash:'dash'}},
+      {type:'line',x0:dates[0],x1:dates[dates.length-1],y0:30,y1:30,xref:'x',yref:'y3',line:{color:'rgba(34,197,94,0.55)',width:1,dash:'dash'}},
+      {type:'line',x0:dates[0],x1:dates[dates.length-1],y0:0,y1:0,xref:'x',yref:'y4',line:{color:'rgba(148,163,184,0.3)',width:1}},
+    ],
+    annotations:[
+      {text:'Vol',xref:'paper',yref:'paper',x:0.01,y:0.345,showarrow:false,font:{color:'#64748b',size:9},xanchor:'left'},
+      {text:'RSI',xref:'paper',yref:'paper',x:0.01,y:0.21,showarrow:false,font:{color:'#64748b',size:9},xanchor:'left'},
+      {text:'MACD',xref:'paper',yref:'paper',x:0.01,y:0.07,showarrow:false,font:{color:'#64748b',size:9},xanchor:'left'},
+    ].concat(recentCross),
+  };
+  section10Layout = layout;
+  Plotly.newPlot('section10-plot', traces, layout, {responsive:true,displayModeBar:true,modeBarButtonsToRemove:['toImage'],displaylogo:false});
+}
+
+function updateChartRange() {
+  section10CurrentDays = parseInt(document.getElementById('timeRangeSelect').value);
+  if (!section10Layout) return;
+  var data = STATE.ohlcv;
+  if (!data||data.length===0) return;
+  var dates = data.map(function(d){return d.t.toISOString().split('T')[0];});
+  var end = dates[dates.length-1];
+  var start = new Date(); start.setDate(start.getDate()-section10CurrentDays);
+  Plotly.relayout('section10-plot',{'xaxis.range':[start.toISOString().split('T')[0],end]});
+}
+
+function updateChartOverlays() {
+  if (!document.getElementById('section10-plot')) return;
+  var show2yma = document.getElementById('ov2yma').checked;
+  var showPi = document.getElementById('ovPiCycle').checked;
+  var show200w = document.getElementById('ov200wma').checked;
+  var showGR = document.getElementById('ovGoldenRatio').checked;
+  Plotly.restyle('section10-plot',{visible:show2yma?true:'legendonly'},[5]);
+  Plotly.restyle('section10-plot',{visible:show2yma?true:'legendonly'},[6]);
+  Plotly.restyle('section10-plot',{visible:showPi?true:'legendonly'},[7]);
+  Plotly.restyle('section10-plot',{visible:showPi?true:'legendonly'},[8]);
+  Plotly.restyle('section10-plot',{visible:show200w?true:'legendonly'},[9]);
+  Plotly.restyle('section10-plot',{visible:showGR?true:'legendonly'},[10]);
+}
+
+// ============================================================
+// SECTION 11: FEAR & GREED
+// ============================================================
+function renderSection11() {
+  var fg = STATE.fgCurrent;
+  if (fg == null) {
+    document.getElementById('section11-content').innerHTML = '<p class="text-muted small">Fear &amp; Greed data unavailable</p>';
+    return;
+  }
+  var fgLabel = fgClassLabel(fg), fgColor = fgValColor(fg);
+  // SVG half-circle gauge
+  var cx = 120, cy = 108, ro = 92, ri = 65;
+  function polar(angleDeg, r) {
+    var rad = (angleDeg - 90) * Math.PI / 180;
+    return [cx + r*Math.cos(rad), cy + r*Math.sin(rad)];
+  }
+  function arcSeg(a1, a2, ri, ro) {
+    var p1 = polar(a1, ro), p2 = polar(a2, ro), p3 = polar(a2, ri), p4 = polar(a1, ri);
+    var lf = (a2-a1)>180?1:0;
+    return 'M'+p1[0].toFixed(2)+','+p1[1].toFixed(2)+
+           ' A'+ro+','+ro+',0,'+lf+',1,'+p2[0].toFixed(2)+','+p2[1].toFixed(2)+
+           ' L'+p3[0].toFixed(2)+','+p3[1].toFixed(2)+
+           ' A'+ri+','+ri+',0,'+lf+',0,'+p4[0].toFixed(2)+','+p4[1].toFixed(2)+' Z';
+  }
+  var segs = [
+    {a1:180,a2:216,color:'#22d3ee'},{a1:216,a2:252,color:'#22c55e'},
+    {a1:252,a2:288,color:'#f59e0b'},{a1:288,a2:324,color:'#f97316'},
+    {a1:324,a2:360,color:'#ef4444'},
+  ];
+  var paths = segs.map(function(s){return '<path d="'+arcSeg(s.a1,s.a2,ri,ro)+'" fill="'+s.color+'" opacity="0.85"/>';}).join('');
+  // Needle
+  var needleAngle = 180 + (fg/100)*180;
+  var np = polar(needleAngle, 80);
+  var gaugeSVG =
+    '<svg width="240" height="128" viewBox="0 0 240 128" style="overflow:visible;">' +
+    paths +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="58" fill="var(--bg-card)"/>' +
+    '<line x1="'+cx+'" y1="'+cy+'" x2="'+np[0].toFixed(2)+'" y2="'+np[1].toFixed(2)+'" stroke="white" stroke-width="3" stroke-linecap="round"/>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="white"/>' +
+    '<text x="'+cx+'" y="'+(cy+26)+'" text-anchor="middle" fill="'+fgColor+'" font-size="22" font-weight="800">'+fg+'</text>' +
+    '<text x="'+cx+'" y="'+(cy+42)+'" text-anchor="middle" fill="'+fgColor+'" font-size="10" font-weight="600">'+fgLabel.toUpperCase()+'</text>' +
+    '<text x="18" y="'+(cy+16)+'" fill="#22d3ee" font-size="9">Extreme</text><text x="18" y="'+(cy+27)+'" fill="#22d3ee" font-size="9">Fear</text>' +
+    '<text x="185" y="'+(cy+16)+'" fill="#ef4444" font-size="9">Extreme</text><text x="185" y="'+(cy+27)+'" fill="#ef4444" font-size="9">Greed</text>' +
+    '</svg>';
+  var fgYest = STATE.fgYesterday, fg7 = STATE.fg7d, fg30 = STATE.fg30d;
+  var compHtml = '<div class="fg-comparison">' +
+    '<div class="fg-comp-item"><div class="fg-comp-label">Yesterday</div><div class="fg-comp-val" style="color:'+fgValColor(fgYest)+';">'+(fgYest!=null?fgYest:'N/A')+'</div></div>' +
+    '<div class="fg-comp-item"><div class="fg-comp-label">7 Days Ago</div><div class="fg-comp-val" style="color:'+fgValColor(fg7)+';">'+(fg7!=null?fg7:'N/A')+'</div></div>' +
+    '<div class="fg-comp-item"><div class="fg-comp-label">30 Days Ago</div><div class="fg-comp-val" style="color:'+fgValColor(fg30)+';">'+(fg30!=null?fg30:'N/A')+'</div></div>' +
+    '</div>';
+  var histHtml = STATE.fearGreedHistory.length > 30 ? '<div id="fg-hist-chart" style="margin-top:12px;"></div>' : '';
+  document.getElementById('section11-content').innerHTML =
+    '<div class="fg-gauge-container">' + gaugeSVG + '</div>' + compHtml + histHtml;
+  if (STATE.fearGreedHistory.length > 30) {
+    var last365 = STATE.fearGreedHistory.slice(-365);
+    var fgDates = last365.map(function(d){return d.date.toISOString().split('T')[0];});
+    var fgVals = last365.map(function(d){return d.value;});
+    var fgTrace = {x:fgDates,y:fgVals,name:'Fear & Greed',type:'scatter',mode:'lines',fill:'tozeroy',
+                   line:{color:'#f7931a',width:2},fillcolor:'rgba(247,147,26,0.12)'};
+    var fgLayout = {
+      paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',height:180,
+      margin:{t:10,b:40,l:40,r:10},
+      xaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8',size:9}},
+      yaxis:{gridcolor:'#1e2d40',color:'#94a3b8',tickfont:{color:'#94a3b8',size:9},range:[0,100]},
+      showlegend:false,
+      shapes:[
+        {type:'line',x0:fgDates[0],x1:fgDates[fgDates.length-1],y0:25,y1:25,line:{color:'rgba(34,197,94,0.5)',width:1,dash:'dash'}},
+        {type:'line',x0:fgDates[0],x1:fgDates[fgDates.length-1],y0:75,y1:75,line:{color:'rgba(239,68,68,0.5)',width:1,dash:'dash'}},
+      ],
+    };
+    setTimeout(function(){Plotly.newPlot('fg-hist-chart',[fgTrace],fgLayout,{responsive:true,displayModeBar:false});},120);
+  }
+}
+
+// ============================================================
+// SECTION 12: FINAL SUMMARY
+// ============================================================
+function renderSection12() {
+  var gws = STATE.gws, hd = STATE.halvingData, price = STATE.price;
+  var fv = STATE.powerLawFV, fg = STATE.fgCurrent, hr = STATE.hashrate3m, fedRate = STATE.fedRate;
+  var verdictLabel = gws >= 65 ? 'ACCUMULATE' : gws >= 45 ? 'HOLD' : 'REDUCE';
+  var verdictColor = gwsColor(gws);
+  // Bullish factors
+  var bullish = [];
+  if (hd && hd.daysSince < 548) bullish.push('Halving catalyst active — BTC historically appreciates significantly within 18 months post-halving');
+  if (price && fv && price < fv) bullish.push(Math.abs(STATE.powerLawDevPct).toFixed(1) + '% below Power-Law fair value — mean reversion upside potential');
+  if (fg != null && fg < 40) bullish.push('Fear & Greed at ' + fg + ' — contrarian signal: market in fear zone historically favors buyers');
+  if (hr != null && hr > 0) bullish.push('Hashrate growing ' + hr.toFixed(1) + '% over 90 days — rising network security and miner confidence');
+  if (bullish.length === 0) bullish.push('No strong bullish signals detected at current market levels');
+  // Bearish factors
+  var bearish = [];
+  if (hd && hd.daysSince > 548 && hd.daysSince < 1095) bearish.push('Post-peak cycle phase (' + hd.phase + ') — historical bear markets follow euphoria periods');
+  if (price && fv && price > fv * 1.5) bearish.push(STATE.powerLawDevPct.toFixed(1) + '% above Power-Law fair value — elevated valuation increases downside risk');
+  if (fg != null && fg > 75) bearish.push('Extreme greed at ' + fg + ' — euphoria historically signals market tops, contrarian short signal');
+  if (fedRate > 4.5) bearish.push('Fed Funds Rate at ' + fedRate.toFixed(2) + '% — restrictive monetary policy reduces risk asset liquidity');
+  if (bearish.length === 0) bearish.push('No significant bearish signals identified at current market conditions');
+
+  var bullHtml = bullish.map(function(f){return '<div class="summary-factor"><div class="factor-dot" style="background:#22c55e;"></div><span>'+f+'</span></div>';}).join('');
+  var bearHtml = bearish.map(function(f){return '<div class="summary-factor"><div class="factor-dot" style="background:#ef4444;"></div><span>'+f+'</span></div>';}).join('');
+  var plLabelColors = {'Strongly Undervalued':'#22c55e','Undervalued':'#84cc16','Fair Value':'#f59e0b','Overvalued':'#f97316','Strongly Overvalued':'#ef4444'};
+  var macroStatus = fedRate > 4.5 ? 'Restrictive' : fedRate > 2.5 ? 'Neutral' : 'Accommodative';
+  var macroColor = fedRate > 4.5 ? '#ef4444' : fedRate > 2.5 ? '#f59e0b' : '#22c55e';
+  var mc = STATE.mcPaths;
+  var volPct = mc ? (mc.volAnnual*100).toFixed(1)+'%' : 'N/A';
+  var volColor = mc && mc.volAnnual>0.8?'#ef4444':mc&&mc.volAnnual>0.5?'#f59e0b':'#22c55e';
+  document.getElementById('section12-content').innerHTML =
+    '<div class="text-center mb-3">' +
+      '<span class="badge-verdict" style="font-size:1.1rem;background:'+verdictColor+'22;color:'+verdictColor+';border:2px solid '+verdictColor+';">VERDICT: '+verdictLabel+'</span>' +
+      '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">GWS Score: '+gws+'/100</div>' +
+    '</div>' +
+    '<div class="row g-3 mb-3">' +
+      '<div class="col-md-6"><div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:14px;">' +
+        '<div style="font-weight:700;color:#22c55e;margin-bottom:8px;font-size:0.85rem;">BULLISH FACTORS</div>' + bullHtml + '</div></div>' +
+      '<div class="col-md-6"><div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:14px;">' +
+        '<div style="font-weight:700;color:#ef4444;margin-bottom:8px;font-size:0.85rem;">BEARISH RISKS</div>' + bearHtml + '</div></div>' +
+    '</div>' +
+    '<div class="status-tiles-row">' +
+      '<div class="status-tile"><div class="st-label">Cycle Phase</div><div class="st-val" style="color:var(--btc-orange);">'+(STATE.cyclePhase||'N/A')+'</div></div>' +
+      '<div class="status-tile"><div class="st-label">Valuation</div><div class="st-val" style="color:'+(plLabelColors[STATE.powerLawLabel]||'#94a3b8')+';font-size:0.78rem;">'+(STATE.powerLawLabel||'N/A')+'</div></div>' +
+      '<div class="status-tile"><div class="st-label">Macro (Fed)</div><div class="st-val" style="color:'+macroColor+';">'+macroStatus+'</div></div>' +
+      '<div class="status-tile"><div class="st-label">Ann. Volatility</div><div class="st-val" style="color:'+volColor+';">'+volPct+'</div></div>' +
+    '</div>' +
+    '<div class="disclaimer-box mt-3">' +
+      '<strong>Disclaimer:</strong> This dashboard is for informational and educational purposes only. It does not constitute financial, investment, or trading advice. Bitcoin and cryptocurrencies are highly volatile assets. Past performance does not guarantee future results. Always conduct your own research (DYOR) and consult a qualified financial advisor before making investment decisions. The creators accept no liability for financial losses.' +
+    '</div>';
+}
+
+// ============================================================
+// MAIN INIT
+// ============================================================
+async function init() {
+  try {
+    await Promise.allSettled([
+      loadCoinGecko(),
+      loadPriceHistory(),
+      loadBinanceOHLCV(),
+      loadFearGreed(),
+      loadHashrate(),
+      loadEURUSD(),
+      loadFEDFunds(),
+    ]);
+    calcPowerLaw();
+    calcGIS();
+    calcCycleScore();
+    calcGWS();
+    runMonteCarlo();
+    renderSection1();
+    renderSection2();
+    renderSection3();
+    renderSection4();
+    renderSection5and8();
+    renderSection6and7and9();
+    await renderSection10();
+    renderSection11();
+    renderSection12();
+    STATE.initialized = true;
+  } catch(err) {
+    console.error('Dashboard init error:', err);
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div class="alert alert-danger m-3">Dashboard initialization error: ' + err.message + '. Some sections may be incomplete.</div>'
+    );
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
