@@ -433,33 +433,51 @@ def main():
 
     # P3 — 90-Day Price Fan ───────────────────────────────────
     ax3 = fig.add_subplot(gs[0, 2])
-    tail = vr["meta_test"].iloc[-180:]
-    ax3.plot(tail["date"], tail["close"], color=C_GRY, lw=1.2, label="History")
+    # Show only 45 days history so the 90-day fan occupies 2/3 of the x-axis
+    tail    = vr["meta_test"].iloc[-45:]
+    spot_px = float(vr["meta_test"]["close"].iloc[-1])
+    sig_ann = float(np.sqrt(np.exp(float(vr["yte_pred"][-1])) * 252))
+
+    ax3.plot(tail["date"], tail["close"], color=C_GRY, lw=1.5, label="History")
     ax3.fill_between(fan["date"], fan["p05"], fan["p95"],
-                     color=C_ORG, alpha=0.12, label="5–95%")
+                     color=C_ORG, alpha=0.15, label="5–95%")
     ax3.fill_between(fan["date"], fan["p25"], fan["p75"],
-                     color=C_ORG, alpha=0.30, label="25–75%")
-    ax3.plot(fan["date"], fan["p50"], color=C_ORG, lw=1.5, label="Median")
+                     color=C_ORG, alpha=0.40, label="25–75%")
+    ax3.plot(fan["date"], fan["p50"], color=C_ORG, lw=1.8, label="Median (0-drift)")
     ax3.axvline(vr["meta_test"]["date"].iloc[-1],
-                color=C_RED, lw=1.0, ls="--", alpha=0.7)
+                color=C_RED, lw=1.2, ls="--", alpha=0.8, label="Now")
+
+    # Y-axis: zoom on ±70% of spot in log space to make fan fill the panel
     ax3.set_yscale("log")
-    # Explicit ticks at round price levels — avoids label cutoff
-    all_p  = np.concatenate([tail["close"].values,
-                              fan["p05"].values, fan["p95"].values])
-    plo, phi_p = all_p.min() * 0.88, all_p.max() * 1.12
-    nice_k = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,90,100,110,120,150]
-    ticks  = [t * 1000 for t in nice_k if plo <= t * 1000 <= phi_p]
+    ylo = spot_px * np.exp(-0.70)
+    yhi = spot_px * np.exp(+0.70)
+    ax3.set_ylim(ylo, yhi)
+
+    # Ticks at round prices within the zoomed range
+    nice_k = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,20,22,25,
+              30,35,40,45,50,55,60,65,70,75,80,90,100,110,120,150]
+    ticks  = [t * 1000 for t in nice_k if ylo * 0.95 <= t * 1000 <= yhi * 1.05]
     if len(ticks) >= 2:
         ax3.set_yticks(ticks)
     ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x/1000:.0f}k"))
     ax3.yaxis.set_minor_locator(plt.NullLocator())
-    # Annotate current predicted vol
-    sig_ann = float(np.sqrt(np.exp(float(vr["yte_pred"][-1])) * 252))
-    ax3.text(0.02, 0.03, f"Pred. ann. vol ≈ {sig_ann:.0%}",
+
+    # Annotate fan edges with % distance at day 90
+    p05_90 = float(fan["p05"].iloc[-1])
+    p95_90 = float(fan["p95"].iloc[-1])
+    last_d  = fan["date"].iloc[-1]
+    ax3.annotate(f"{(p95_90/spot_px-1)*100:+.0f}%",
+                 xy=(last_d, p95_90), xytext=(4, 0),
+                 textcoords="offset points", color=C_ORG, fontsize=7.5, va="center")
+    ax3.annotate(f"{(p05_90/spot_px-1)*100:+.0f}%",
+                 xy=(last_d, p05_90), xytext=(4, 0),
+                 textcoords="offset points", color=C_ORG, fontsize=7.5, va="center")
+    ax3.text(0.02, 0.03, f"HAR pred. ann.vol ≈ {sig_ann:.0%}",
              transform=ax3.transAxes, color=C_ORG, fontsize=7.5, va="bottom")
-    ax3.legend(fontsize=7, facecolor=BG, edgecolor="#30363d", labelcolor=TXT)
+    ax3.legend(fontsize=7, facecolor=BG, edgecolor="#30363d", labelcolor=TXT,
+               loc="upper left")
     ax3.tick_params(axis="x", rotation=25)
-    sax(ax3, "90-Day Vol Cone — log scale, zero drift")
+    sax(ax3, f"90-Day Vol Cone  (HAR-seeded, ann.vol≈{sig_ann:.0%})")
 
     # P4 — Rolling DirAcc ─────────────────────────────────────
     ax4 = fig.add_subplot(gs[1, 0])
