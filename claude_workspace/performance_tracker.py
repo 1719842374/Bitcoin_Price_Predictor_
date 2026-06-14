@@ -277,17 +277,15 @@ def forecast_fan(meta_test, last_log_var_pred, horizon=90, n_paths=8000, seed=SE
     sig_now  = float(np.sqrt(np.exp(last_log_var_pred)))
     sig_long = float(np.sqrt(np.median(
                    pd.Series(rets**2).rolling(22).mean().dropna())))
-    drift_d  = float(np.mean(rets[-90:])) if len(rets)>=90 else float(np.mean(rets))
-    std_r    = (rets - rets.mean()) / (rets.std() + 1e-10)
-    spot     = float(closes[-1])
+    # Zero drift → pure symmetric vol cone; drift biases the fan and hides vol structure
+    spot = float(closes[-1])
 
     paths = np.empty((n_paths, horizon))
     for i in range(n_paths):
         lp, v = np.log(spot), sig_now
         for t in range(horizon):
-            drift_t = drift_d * max(0.0, 1.0 - t/horizon)
-            v       = 0.90 * v + 0.10 * sig_long
-            lp     += drift_t + v * rng.choice(std_r)
+            v   = 0.90 * v + 0.10 * sig_long   # vol mean-reversion
+            lp += v * rng.standard_normal()      # symmetric Gaussian shock
             paths[i, t] = np.exp(lp)
 
     pct   = lambda q: np.percentile(paths, q, axis=0)
@@ -445,11 +443,23 @@ def main():
     ax3.axvline(vr["meta_test"]["date"].iloc[-1],
                 color=C_RED, lw=1.0, ls="--", alpha=0.7)
     ax3.set_yscale("log")
-    ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
-    ax3.yaxis.set_minor_formatter(plt.NullFormatter())
+    # Explicit ticks at round price levels — avoids label cutoff
+    all_p  = np.concatenate([tail["close"].values,
+                              fan["p05"].values, fan["p95"].values])
+    plo, phi_p = all_p.min() * 0.88, all_p.max() * 1.12
+    nice_k = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,90,100,110,120,150]
+    ticks  = [t * 1000 for t in nice_k if plo <= t * 1000 <= phi_p]
+    if len(ticks) >= 2:
+        ax3.set_yticks(ticks)
+    ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x/1000:.0f}k"))
+    ax3.yaxis.set_minor_locator(plt.NullLocator())
+    # Annotate current predicted vol
+    sig_ann = float(np.sqrt(np.exp(float(vr["yte_pred"][-1])) * 252))
+    ax3.text(0.02, 0.03, f"Pred. ann. vol ≈ {sig_ann:.0%}",
+             transform=ax3.transAxes, color=C_ORG, fontsize=7.5, va="bottom")
     ax3.legend(fontsize=7, facecolor=BG, edgecolor="#30363d", labelcolor=TXT)
     ax3.tick_params(axis="x", rotation=25)
-    sax(ax3, "90-Day Price Fan — log scale (HAR-vol seeded, drift decay)")
+    sax(ax3, "90-Day Vol Cone — log scale, zero drift")
 
     # P4 — Rolling DirAcc ─────────────────────────────────────
     ax4 = fig.add_subplot(gs[1, 0])
